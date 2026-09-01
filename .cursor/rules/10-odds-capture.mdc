@@ -1,0 +1,58 @@
+---
+description: Rules for the odds capture pipeline — the irreplaceable data path.
+globs:
+  - "ingest/**"
+  - "migrations/**"
+  - "tests/ingest/**"
+---
+
+# Odds capture
+
+Read `docs/specs/odds-snapshot-pipeline.md` before changing anything here, and
+`docs/specs/week1-minimum-capture.md` for the current deadline-scoped task.
+
+**Why this code is special:** odds history cannot be backfilled. Every other dataset in
+this project can be re-fetched from scratch next year. A bug here destroys data permanently.
+Treat this path as the highest-stakes code in the repo (ADR-0001).
+
+## Required patterns
+
+- **Snapshot lifecycle:** open the `odds_snapshot` row with its requested scope *before* any
+  vendor call; close it with an outcome (`ok` / `partial` / `failed`) and counts. A crash
+  must leave visible evidence, never a silent gap.
+- **Change-only writes:** compute `state_hash = hash(points, price_american, availability)`
+  and write an observation only on change. Compare against `odds_market_state`.
+- **Disappearance is data:** an odds ID that was in scope but absent from the response gets
+  an observation row with `availability = 'pulled'`. Do not skip it.
+- **Discovered scope, not configured scope:** markets vary by fixture, book, and point in
+  the season. Resolve the market list per cycle. A hardcoded market list will silently
+  capture nothing when the vendor renames or adds a market.
+- **Refresh kickoff times every cycle.** Cached schedules mistime the closing capture.
+- **Closing line by policy:** written explicitly with status `captured` / `market_pulled` /
+  `missing`. Never inferred with a "latest observation before kickoff" query — that returns
+  a stale price whenever the final poll failed.
+
+## Vendor API constraints
+
+- At most **5 combined** fixture/player/team IDs per odds request.
+- At most **5 sportsbooks** per odds request.
+- `sport` / `league` alone are not valid odds selectors — resolve fixtures first.
+- Rate limiting is client-side via token bucket, sized below the documented ceiling. Never
+  use the vendor's 429 as flow control.
+- Retry with jittered backoff on 5xx and 429 only. **Never retry a 4xx** — fix the request.
+- All vendor access goes through the `OddsProvider` port. No vendor-specific types leak past
+  the adapter (ADR-0004).
+
+## Testing requirements
+
+Any change here needs:
+1. A recorded-fixture contract test (no live network in unit tests).
+2. The temporal property test still passing: `price_at` never returns an observation with
+   `captured_at > as_of`.
+3. A coverage test: with an injected failed snapshot, a read inside the gap returns
+   `Unknown`, not the pre-gap price.
+
+## During the season
+
+Do not refactor this code while it is capturing live data. Fix bugs surgically; save
+cleanups for the offseason.

@@ -1,0 +1,56 @@
+[project]
+name = "nfl-analytics"
+version = "0.1.0"
+description = "NFL analytics and predictive modeling platform"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "sqlalchemy>=2.0,<3",
+    "alembic",
+    "httpx",
+    "structlog",
+    "psycopg[binary]>=3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = [
+    "ingest*",
+    "transform*",
+    "features*",
+    "models*",
+    "backtest*",
+    "api*",
+    "infra*",
+    "common*",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["ingest", "transform", "features", "models", "backtest", "api", "infra", "common", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["features", "models"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

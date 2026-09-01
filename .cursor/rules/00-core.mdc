@@ -1,0 +1,37 @@
+---
+description: Core project invariants for the NFL analytics platform. Always apply.
+alwaysApply: true
+---
+
+# Core invariants
+
+This is an NFL analytics and predictive modeling platform. Correctness of *temporal
+reasoning* matters more than features shipped. See `AGENTS.md` for full context and
+`docs/adr/` for decisions.
+
+## Absolute rules
+
+- **No lookahead.** Functions producing prediction inputs take an explicit `as_of` and must
+  not be able to read data captured after it. Never call `now()` inside a feature builder.
+- **`Unknown` over stale.** If a value is unavailable at the requested time, return an
+  explicit `Unknown(reason)`. Never substitute the latest known value. Never return `None`
+  for "unknown" — it gets silently coalesced downstream.
+- **Append-only captured data.** No `UPDATE`/`DELETE` on observation tables. Corrections
+  are new rows.
+- **Missing row ≠ unchanged value.** Coverage is recorded separately from values. Never
+  infer that a value persisted because no newer row exists.
+- **Never swallow exceptions in ingest.** Record the failure, mark the outcome, re-raise or
+  alert. Silent success on partial data is the worst outcome in this codebase.
+- **UTC `timestamptz` everywhere.** No naive datetimes cross a function boundary.
+
+## Style
+
+- Python 3.12+, `ruff`, `mypy --strict` on `features/` and `models/`.
+- Pydantic v2 at every boundary; no bare dicts between modules.
+- Secrets from env only. Never commit a credential, never inline an API key in an example.
+- Prefer explicit, boring code. This is a portfolio project — readability is a deliverable.
+
+## Before you finish
+
+State which invariant above your change could plausibly violate, and how you verified it
+does not. If a change touches the capture path, describe the failure mode you tested.

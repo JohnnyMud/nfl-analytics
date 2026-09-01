@@ -1,0 +1,57 @@
+---
+description: Feature engineering, modeling, and evaluation discipline.
+globs:
+  - "features/**"
+  - "models/**"
+  - "backtest/**"
+  - "tests/features/**"
+  - "tests/models/**"
+---
+
+# Modeling discipline
+
+The point of this project is honest evaluation, not high reported accuracy. A model that
+looks worse but is measured correctly is strictly more valuable than one that looks better
+because of a subtle leak.
+
+## Feature rules
+
+- Signature is always `f(entity_id, as_of) -> Value | Unknown`. No exceptions.
+- Rolling windows use **prior games only**. Handle byes, short weeks, and missed games
+  explicitly — never silently forward-fill.
+- Injury and depth-chart features use the last report **before** kickoff, not final status.
+- Odds features use a declared snapshot policy (e.g. T-60min). **The closing line is never a
+  feature** — it is reserved for CLV evaluation.
+- Feature rows are stored with the `as_of` they were computed for, so a backtest replays the
+  exact vector the model saw.
+- Every feature is registered with its as-of semantics and source. An unregistered feature
+  cannot enter a model.
+
+## Evaluation rules
+
+- **Time-aware splits only.** Walk-forward / expanding window by season and week. Random
+  k-fold on game data is a bug, not a choice.
+- **Three mandatory baselines** must be beaten before claiming anything: market-implied
+  probability, season-to-date average, and last-N average.
+- Always report: log loss, Brier score, calibration curve, and performance by confidence
+  bucket. Accuracy alone is not a result.
+- For betting-oriented models also report: implied vs. model probability, edge distribution,
+  hit rate, ROI, max drawdown, and **performance against the closing line**.
+- **Accuracy and profitability are separate claims.** Never present one as evidence of the
+  other. A well-calibrated model can have zero edge if the market prices the same
+  information.
+- Results are written to tables, not pasted into notebooks or chat. Every reported number is
+  reproducible from a stored artifact plus a model version.
+
+## Predictions
+
+Every stored prediction carries: model version, feature-set version, `as_of` timestamp, and
+the run ID that produced it. A prediction without provenance is deleted, not debugged.
+
+## Red flags — stop and flag rather than proceed
+
+- A feature that improves out-of-sample performance dramatically and suddenly. Suspect a
+  leak first, celebrate second.
+- Any model beating the closing line by a wide margin on backtest. Almost always leakage or
+  a stale-line comparison.
+- Reported ROI computed against opening lines you would not actually have been able to bet.
