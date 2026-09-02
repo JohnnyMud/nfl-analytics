@@ -30,20 +30,68 @@ wrapper's release cadence.
 > Decision: read nflverse-data release parquet over HTTPS directly into our own bronze
 > layer. Wrappers are convenience, not infrastructure.
 
-### OpticOdds (connected)
-Sports-betting data API v3 — odds, fixtures, markets, **player props**, futures,
-same-game-parlay pricing, results/grading, and injuries. Already available as a connector
-in this workspace, which covers the hardest part of the betting side: multi-book pricing
-and line movement.
+### OpticOdds (workspace integration — prototype only)
+A sports-betting data API with odds, fixtures, markets, player props, futures,
+SGP pricing, results/grading, and injuries. Connected in this workspace, which is how
+the spec's endpoint limits and market-discovery design were validated against real
+responses.
 
-Use for: opening/closing lines, per-book prop lines, line movement snapshots, CLV
-(closing line value) measurement, and grading historical bets.
+**Not a production data path.** It is an interactive assistant tool, not a callable API
+from a deployed scheduler, and OpticOdds itself is enterprise-only — no self-serve signup,
+no public pricing, access via a sales form, pricing reportedly starting around $5,000/month
+per sport ([OpticOdds](https://opticodds.com/api-integration)). It stays useful for
+research and contract validation but is not the production adapter.
 
-Critical requirement: **snapshot odds on a schedule and store every observation
-immutably**. Odds APIs are point-in-time; without our own time series we can never
-reconstruct what the market looked like before a prediction, and CLV/backtests become
-impossible. This is the single most time-sensitive piece of the build — historical odds
-cannot be recovered later.
+### The Odds API (production primary, free tier)
+[the-odds-api.com](https://the-odds-api.com/sports-odds-data/nfl-odds.html) — the production
+odds source for now. Self-serve, open free tier (500 credits/month, no card), covers NFL game
+lines (moneyline, spreads, totals) and player props, and returns the full slate across books
+and markets in a single request. Base URL `https://api.the-odds-api.com/v4`; auth via
+`apiKey` query parameter; sport key `americanfootball_nfl`.
+
+Why it fits this project right now:
+- **Open and self-serve.** Unlike odds-api.io (which has paused new free keys indefinitely),
+  The Odds API's free tier is available and covers NFL game lines on free.
+- **Full-slate-in-one-call.** A 16-game snapshot is one request, not 16 — efficient and a good
+  fit for a coarse capture cadence.
+- Covers game lines **and** player props, so the same adapter serves both the Week 1 capture
+  and the later player-props scope.
+- Transparent, low pricing suits a portfolio project; Pro ($29/mo) is the documented
+  upgrade for the full cadence and sharp books.
+
+Tradeoffs accepted on free:
+- **Volume is the constraint, not access.** Credits are not requests (a call costs
+  markets × regions credits), so 500 credits ≈ 166 full-slate calls/month. A coarse weekly
+  cadence fits; the full research-grade tiered cadence (2-minute closing snapshots) does not.
+  The adapter tracks credit spend and surfaces `RateBudgetExceeded` so the orchestrator
+  coarsens rather than failing silently.
+- **No sharp books on free.** Pinnacle (eu region) is paid, so no no-vig / sharp-reference
+  baselining is possible on free. Deferred to the Pro upgrade.
+
+### The Odds API Pro (upgrade path, $29/mo)
+The documented upgrade when sharp-reference analysis and the full tiered cadence become
+necessary. Unlocks the full tiered cadence at scale, adds Pinnacle (eu region) for no-vig
+baselining, and covers ~50 books. Reached by writing a second adapter behind the same
+`OddsProvider` port — the pipeline, schema, and tests are unchanged.
+
+### Evaluated alternatives (not selected)
+
+| Provider | Free tier | NFL | Props | Pricing | Why not primary |
+| --- | --- | --- | --- | --- | --- |
+| [odds-api.io](https://odds-api.io/sports/nfl) | was 100 req/hr | yes | yes | paid tiers | **Free keys paused indefinitely** — not a reliable path |
+| [SharpAPI](https://sharpapi.io/odds/nfl) | 12 req/min | yes | yes | $79–399/mo | Built-in +EV/no-vig is nice but only 2 books on free, 60s delay |
+| [SportsGameOdds](https://sportsgameodds.com/leagues/nfl-odds-api) | 2,500 obj/mo | yes | yes | $99–499/mo | Settlement included; pricier, less SDK ecosystem |
+| OpticOdds | none (sales) | yes | yes | ~$5,000/mo | Enterprise-only; see above |
+
+The `OddsProvider` port means any of these can be added as a second adapter later without
+rearchitecting — useful if a specific research need (e.g. SGP pricing, broader book
+coverage) justifies it.
+
+### nflverse historical closing lines (free, no API)
+nflverse ships historical scoring lines, win totals, and opening/closing spreads as part of
+its release data. These cover the entire CLV and market-comparison backtesting scope at
+zero cost with no odds API at all. The live odds API is only needed for capturing this
+season's line movement in real time — all historical research uses nflverse directly.
 
 ### Weather
 Two-part problem: forecast at prediction time and actual at kickoff. Keep both — the

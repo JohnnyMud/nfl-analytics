@@ -26,24 +26,49 @@ and the display decision must be separable.
 
 Two paths, deliberately separated by an interface.
 
-**Prototype path (now).** Use the workspace OpticOdds integration for schema validation,
-market discovery, exploratory analysis, and answering design questions — bounded,
-interactive work. It informed this spec and will keep informing modeling decisions.
+**Prototype path (the workspace OpticOdds integration).** Useful — it let this spec be
+validated against the live API contract rather than written from documentation alone, and
+it confirmed real response shapes, required parameters, and market-availability behavior.
+It remains useful for schema validation, market discovery, and answering design questions
+interactively.
 
-**Production path (before Week 1).** The scheduled pipeline authenticates with the
-project's own vendor credentials, held in the environment and never in the repo. Whether
-that is a direct OpticOdds account or an alternative feed is a procurement question, not an
-architecture question, because:
+It is **not** a production data path, for two reasons. First, it is an interactive
+assistant tool, not a callable API from a deployed scheduler — a pipeline that must run
+unattended cannot depend on it. Second, OpticOdds itself is enterprise-only: no
+self-serve signup, no public pricing, access via a sales form, community-reported pricing
+starting around $5,000/month per sport. That does not fit a personal/portfolio project.
+
+**Production path (a self-serve provider).** The scheduled pipeline authenticates with the
+project's own vendor credentials, held in the environment and never in the repo.
+**Primary: The Odds API free tier** (the-odds-api.com). It is self-serve with an open
+free tier (500 credits/month, no card), covers NFL game lines (moneyline, spreads, totals)
+and player props, and returns the full slate across books and markets in a single request —
+so a 16-game snapshot is one call, not 16. That is enough to run a coarse weekly cadence at
+zero cost, sufficient to ship a working Week 1 capture and a portfolio demo.
+
+The free-tier tradeoff is volume: credits are not requests (a call costs markets × regions
+credits), so 500 credits ≈ 166 full-slate calls/month. The coarse cadence fits; the full
+research-grade tiered cadence (2-minute closing snapshots) does not. The adapter must track
+credit spend and surface a `RateBudgetExceeded` signal so the orchestrator coarsens rather
+than failing silently. No sharp books on free (Pinnacle is paid), so no no-vig baselining is
+possible on free.
+
+**Upgrade path: The Odds API Pro** ($29/mo). Unlocks the full tiered cadence at scale, adds
+Pinnacle (eu region) for sharp-reference no-vig baselining, and covers ~50 books. Switch
+when sharp-reference analysis and the full tiered cadence become necessary. The
+`OddsProvider` port makes this a one-adapter swap — the pipeline, schema, and tests are
+unchanged. See `docs/data-sources.md` for the evaluated landscape and the selection
+rationale.
 
 **All capture goes through one `OddsProvider` interface.** A narrow port —
 `list_fixtures`, `list_markets`, `get_odds`, `get_results` — returning our own normalized
 types, with the vendor's raw payload attached. The pipeline, schema, and tests know nothing
-about a specific vendor. Swapping or adding a feed means writing one adapter.
+about a specific vendor. Swapping or adding a feed means writing one adapter, and the
+batching constraints become a property of that adapter rather than of the pipeline.
 
-Adapters planned: `OpticOddsAdapter` (primary), and a second free-tier adapter for
-game-level lines as a cross-check and fallback. Two independent sources on moneyline and
-spread is cheap and catches a class of silent single-source corruption that no amount of
-internal validation can.
+**OpticOdds as a second adapter is possible but not planned.** If the project ever needs
+its breadth (200+ books, AI consensus, SGP pricing), a second `OpticOddsAdapter` can be
+added behind the same port without touching the pipeline. It is not a Week 1 requirement.
 
 **Display rights are decided separately and late.** Storage and analysis proceed now under
 private use. Before anything is published, the vendor's terms are reviewed and the API

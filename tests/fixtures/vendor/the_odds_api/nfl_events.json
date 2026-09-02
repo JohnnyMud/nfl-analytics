@@ -1,0 +1,18 @@
+[
+  {
+    "id": "42db668449664943833b5c04a583328a",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-07T20:20:00Z",
+    "home_team": "Seattle Seahawks",
+    "away_team": "New England Patriots"
+  },
+  {
+    "id": "2fd335893dbb8ab9c0e1aea6c98a969c",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-07T17:00:00Z",
+    "home_team": "Dallas Cowboys",
+    "away_team": "Cincinnati Bengals"
+  }
+]

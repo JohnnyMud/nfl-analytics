@@ -24,7 +24,7 @@ test:
 lint:
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m ruff format --check .
-	$(PYTHON) -m mypy --strict features models
+	$(PYTHON) -m mypy --strict features models ingest
 
 capture-dry:
 	@echo "capture not implemented"

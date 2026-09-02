@@ -1,0 +1,4 @@
+{
+  "error_code": "OUT_OF_USAGE_CREDITS",
+  "message": "The usage credit limit of the subscription has been reached for the month."
+}

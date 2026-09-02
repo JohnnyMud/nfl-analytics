@@ -1,0 +1,5 @@
+{
+  "error_code": "INVALID_MARKET",
+  "message": "Invalid market 'player_points' on the /odds endpoint. Use the event-odds endpoint for non-featured markets.",
+  "details_url": "https://the-odds-api.com/liveapi/guides/v4/api-error-codes.html#invalid-market"
+}

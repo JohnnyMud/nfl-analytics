@@ -1,0 +1,15 @@
+{
+  "id": "empty-markets-fixture-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "sport_key": "americanfootball_nfl",
+  "sport_title": "NFL",
+  "commence_time": "2026-09-10T00:20:00Z",
+  "home_team": "Kansas City Chiefs",
+  "away_team": "Detroit Lions",
+  "bookmakers": [
+    {
+      "key": "draftkings",
+      "title": "DraftKings",
+      "markets": []
+    }
+  ]
+}

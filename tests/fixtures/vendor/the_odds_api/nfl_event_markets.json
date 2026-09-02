@@ -1,0 +1,19 @@
+{
+  "id": "42db668449664943833b5c04a583328a",
+  "sport_key": "americanfootball_nfl",
+  "sport_title": "NFL",
+  "commence_time": "2026-09-07T20:20:00Z",
+  "home_team": "Seattle Seahawks",
+  "away_team": "New England Patriots",
+  "bookmakers": [
+    {
+      "key": "fanduel",
+      "title": "FanDuel",
+      "markets": [
+        {"key": "h2h", "last_update": "2026-09-07T18:00:00Z"},
+        {"key": "spreads", "last_update": "2026-09-07T18:00:00Z"},
+        {"key": "totals", "last_update": "2026-09-07T18:00:00Z"}
+      ]
+    }
+  ]
+}

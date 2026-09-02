@@ -1,0 +1,115 @@
+[
+  {
+    "id": "42db668449664943833b5c04a583328a",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-07T20:20:00Z",
+    "home_team": "Seattle Seahawks",
+    "away_team": "New England Patriots",
+    "bookmakers": [
+      {
+        "key": "fanduel",
+        "title": "FanDuel",
+        "last_update": "2026-09-07T18:00:00Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2026-09-07T18:00:00Z",
+            "outcomes": [
+              {"name": "New England Patriots", "price": 245},
+              {"name": "Seattle Seahawks", "price": -300}
+            ]
+          },
+          {
+            "key": "spreads",
+            "last_update": "2026-09-07T18:00:00Z",
+            "outcomes": [
+              {"name": "New England Patriots", "price": -105, "point": 6.5},
+              {"name": "Seattle Seahawks", "price": -115, "point": -6.5}
+            ]
+          },
+          {
+            "key": "totals",
+            "last_update": "2026-09-07T18:00:00Z",
+            "outcomes": [
+              {"name": "Over", "price": -105, "point": 43.5},
+              {"name": "Under", "price": -115, "point": 43.5}
+            ]
+          }
+        ]
+      },
+      {
+        "key": "draftkings",
+        "title": "DraftKings",
+        "last_update": "2026-09-07T18:01:00Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2026-09-07T18:01:00Z",
+            "outcomes": [
+              {"name": "New England Patriots", "price": 240},
+              {"name": "Seattle Seahawks", "price": -290}
+            ]
+          },
+          {
+            "key": "spreads",
+            "last_update": "2026-09-07T18:01:00Z",
+            "outcomes": [
+              {"name": "New England Patriots", "price": -110, "point": 6.5},
+              {"name": "Seattle Seahawks", "price": -110, "point": -6.5}
+            ]
+          },
+          {
+            "key": "totals",
+            "last_update": "2026-09-07T18:01:00Z",
+            "outcomes": [
+              {"name": "Over", "price": -108, "point": 43.0},
+              {"name": "Under", "price": -112, "point": 43.0}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "2fd335893dbb8ab9c0e1aea6c98a969c",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-07T17:00:00Z",
+    "home_team": "Dallas Cowboys",
+    "away_team": "Cincinnati Bengals",
+    "bookmakers": [
+      {
+        "key": "draftkings",
+        "title": "DraftKings",
+        "last_update": "2026-09-07T16:00:00Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2026-09-07T16:00:00Z",
+            "outcomes": [
+              {"name": "Cincinnati Bengals", "price": -218},
+              {"name": "Dallas Cowboys", "price": 180}
+            ]
+          },
+          {
+            "key": "spreads",
+            "last_update": "2026-09-07T16:00:00Z",
+            "outcomes": [
+              {"name": "Cincinnati Bengals", "price": -108, "point": -4.5},
+              {"name": "Dallas Cowboys", "price": -112, "point": 4.5}
+            ]
+          },
+          {
+            "key": "totals",
+            "last_update": "2026-09-07T16:00:00Z",
+            "outcomes": [
+              {"name": "Over", "price": -108, "point": 50.5},
+              {"name": "Under", "price": -112, "point": 50.5}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
