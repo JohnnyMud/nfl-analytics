@@ -27,4 +27,4 @@ lint:
 	$(PYTHON) -m mypy --strict features models ingest
 
 capture-dry:
-	@echo "capture not implemented"
+	$(PYTHON) -m ingest.odds tick --dry-run

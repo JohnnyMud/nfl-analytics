@@ -21,7 +21,7 @@ from ingest.odds.types import Quote, SnapshotId, SnapshotScope, WriteStats
 
 _INSERT_OBSERVATION = text(
     """
-    INSERT INTO odds_observation (
+    INSERT INTO market.odds_observation (
         snapshot_id,
         vendor,
         vendor_odds_id,
@@ -71,7 +71,7 @@ _INSERT_OBSERVATION = text(
 
 _UPSERT_STATE = text(
     """
-    INSERT INTO odds_market_state (
+    INSERT INTO market.odds_market_state (
         vendor,
         vendor_odds_id,
         last_observation_id,
@@ -132,7 +132,7 @@ def open_snapshot(
         snapshot_id = conn.execute(
             text(
                 """
-                INSERT INTO odds_snapshot (
+                INSERT INTO market.odds_snapshot (
                     vendor, tier, scope, started_at, outcome
                 )
                 VALUES (
@@ -168,7 +168,7 @@ def write_quotes(
             text(
                 """
                 SELECT vendor, tier, scope, outcome
-                FROM odds_snapshot
+                FROM market.odds_snapshot
                 WHERE snapshot_id = :snapshot_id
                 """
             ),
@@ -300,7 +300,7 @@ def _load_hashes(
     stmt = text(
         """
         SELECT vendor_odds_id, state_hash
-        FROM odds_market_state
+        FROM market.odds_market_state
         WHERE vendor = :vendor AND vendor_odds_id IN :ids
         """
     ).bindparams(bindparam("ids", expanding=True))
@@ -338,8 +338,8 @@ def _write_pulls(
             o.vendor_team_id,
             o.limits,
             s.state_hash
-        FROM odds_market_state AS s
-        JOIN odds_observation AS o
+        FROM market.odds_market_state AS s
+        JOIN market.odds_observation AS o
           ON o.observation_id = s.last_observation_id
          AND o.captured_at = s.last_captured_at
         WHERE s.vendor = :vendor
@@ -491,7 +491,7 @@ def close_snapshot(
         conn.execute(
             text(
                 """
-                UPDATE odds_snapshot
+                UPDATE market.odds_snapshot
                 SET finished_at = :finished_at,
                     outcome = :outcome,
                     requests_made = :requests_made,
@@ -533,7 +533,7 @@ def sweep_abandoned(
         result = conn.execute(
             text(
                 """
-                UPDATE odds_snapshot
+                UPDATE market.odds_snapshot
                 SET outcome = 'abandoned',
                     finished_at = :finished_at,
                     error = CAST(:error AS jsonb)

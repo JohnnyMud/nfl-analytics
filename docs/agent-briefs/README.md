@@ -32,3 +32,4 @@ If the agent writes happy-path tests only, the interesting behavior is unverifie
 | [01-repo-foundation.md](01-repo-foundation.md) | Skeleton, tooling, CI, migrations | Ready |
 | [02-odds-provider-adapter.md](02-odds-provider-adapter.md) | Vendor port + adapter + recorded fixtures | Ready |
 | [03-capture-writer.md](03-capture-writer.md) | Snapshot lifecycle + change-only writer | Ready |
+| [04-orchestrator-scheduler.md](04-orchestrator-scheduler.md) | Tiered-cadence orchestrator + minimal scheduler | Ready |

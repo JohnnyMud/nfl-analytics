@@ -75,8 +75,8 @@ def db(migrated_engine: Engine) -> Iterator[Engine]:
         conn.execute(
             text(
                 """
-                TRUNCATE odds_market_state, odds_closing_line,
-                         odds_observation, odds_snapshot
+                TRUNCATE market.odds_market_state, market.odds_closing_line,
+                         market.odds_observation, market.odds_snapshot
                 RESTART IDENTITY CASCADE
                 """
             )
@@ -90,7 +90,7 @@ def _observation_count(engine: Engine, vendor_odds_id: str = "odds-1") -> int:
             conn.execute(
                 text(
                     """
-                    SELECT COUNT(*) FROM odds_observation
+                    SELECT COUNT(*) FROM market.odds_observation
                     WHERE vendor_odds_id = :vendor_odds_id
                     """
                 ),
@@ -104,7 +104,7 @@ def _state_hash(engine: Engine, vendor_odds_id: str = "odds-1") -> str | None:
         return conn.execute(
             text(
                 """
-                SELECT state_hash FROM odds_market_state
+                SELECT state_hash FROM market.odds_market_state
                 WHERE vendor = :vendor AND vendor_odds_id = :vendor_odds_id
                 """
             ),
@@ -115,7 +115,7 @@ def _state_hash(engine: Engine, vendor_odds_id: str = "odds-1") -> str | None:
 def _snapshot_outcome(engine: Engine, snapshot_id: int) -> str | None:
     with engine.connect() as conn:
         return conn.execute(
-            text("SELECT outcome FROM odds_snapshot WHERE snapshot_id = :id"),
+            text("SELECT outcome FROM market.odds_snapshot WHERE snapshot_id = :id"),
             {"id": snapshot_id},
         ).scalar_one()
 
@@ -189,7 +189,7 @@ def test_in_scope_disappearance_writes_one_pulled_row(db: Engine) -> None:
             text(
                 """
                 SELECT availability, raw, snapshot_id, vendor_timestamp
-                FROM odds_observation
+                FROM market.odds_observation
                 WHERE vendor_odds_id = 'odds-1'
                 ORDER BY observation_id DESC
                 LIMIT 1
@@ -251,7 +251,7 @@ def test_concurrent_write_quotes_produce_no_duplicate_rows(db: Engine) -> None:
     assert _observation_count(db) == 1
     with db.connect() as conn:
         state_rows = conn.execute(
-            text("SELECT COUNT(*) FROM odds_market_state")
+            text("SELECT COUNT(*) FROM market.odds_market_state")
         ).scalar_one()
     assert int(state_rows) == 1
 
@@ -271,7 +271,7 @@ def test_sweep_abandoned_marks_running_and_keeps_observations(db: Engine) -> Non
 
     with db.connect() as conn:
         error = conn.execute(
-            text("SELECT error FROM odds_snapshot WHERE snapshot_id = :id"),
+            text("SELECT error FROM market.odds_snapshot WHERE snapshot_id = :id"),
             {"id": snap},
         ).scalar_one()
     assert error is not None
@@ -333,7 +333,7 @@ def test_batch_rows_share_a_single_captured_at(db: Engine) -> None:
                 text(
                     """
                 SELECT DISTINCT captured_at
-                FROM odds_observation
+                FROM market.odds_observation
                 WHERE snapshot_id = :id
                 """
                 ),

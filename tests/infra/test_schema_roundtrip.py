@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Engine
 
 EXPECTED_PARTITIONS = {
@@ -14,6 +14,15 @@ EXPECTED_PARTITIONS = {
     "odds_observation_2026_12",
     "odds_observation_2027_01",
     "odds_observation_2027_02",
+}
+
+MARKET_TABLES = {
+    "vendor_fixture",
+    "odds_snapshot",
+    "odds_observation",
+    "odds_market_state",
+    "odds_closing_line",
+    "market_catalog",
 }
 
 
@@ -27,7 +36,9 @@ def test_snapshot_and_observation_timestamps_round_trip_utc(
         snapshot_id = conn.execute(
             text(
                 """
-                INSERT INTO odds_snapshot (vendor, tier, scope, started_at, outcome)
+                INSERT INTO market.odds_snapshot (
+                    vendor, tier, scope, started_at, outcome
+                )
                 VALUES (
                     :vendor,
                     :tier,
@@ -49,7 +60,7 @@ def test_snapshot_and_observation_timestamps_round_trip_utc(
         conn.execute(
             text(
                 """
-                INSERT INTO odds_observation (
+                INSERT INTO market.odds_observation (
                     snapshot_id,
                     vendor,
                     vendor_odds_id,
@@ -91,7 +102,7 @@ def test_snapshot_and_observation_timestamps_round_trip_utc(
             text(
                 """
                 SELECT started_at
-                FROM odds_snapshot
+                FROM market.odds_snapshot
                 WHERE snapshot_id = :snapshot_id
                 """
             ),
@@ -101,7 +112,7 @@ def test_snapshot_and_observation_timestamps_round_trip_utc(
             text(
                 """
                 SELECT captured_at, vendor_timestamp
-                FROM odds_observation
+                FROM market.odds_observation
                 WHERE snapshot_id = :snapshot_id
                 """
             ),
@@ -130,7 +141,9 @@ def test_odds_observation_monthly_partitions_exist(migrated_engine: Engine) -> N
                     FROM pg_inherits AS i
                     JOIN pg_class AS child ON child.oid = i.inhrelid
                     JOIN pg_class AS parent ON parent.oid = i.inhparent
-                    WHERE parent.relname = 'odds_observation'
+                    JOIN pg_namespace AS n ON n.oid = parent.relnamespace
+                    WHERE n.nspname = 'market'
+                      AND parent.relname = 'odds_observation'
                     """
                 )
             )
@@ -140,14 +153,92 @@ def test_odds_observation_monthly_partitions_exist(migrated_engine: Engine) -> N
     assert names == EXPECTED_PARTITIONS
 
 
+def test_market_and_nfl_schemas_exist(migrated_engine: Engine) -> None:
+    with migrated_engine.connect() as conn:
+        names = set(
+            conn.execute(
+                text(
+                    """
+                    SELECT nspname
+                    FROM pg_namespace
+                    WHERE nspname IN ('market', 'nfl')
+                    """
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert names == {"market", "nfl"}
+
+
+def test_odds_tables_live_in_market_schema(migrated_engine: Engine) -> None:
+    in_tables = text(
+        """
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = :schema
+              AND tablename IN :tables
+            """
+    ).bindparams(bindparam("tables", expanding=True))
+    table_names = list(MARKET_TABLES)
+    with migrated_engine.connect() as conn:
+        market_tables = set(
+            conn.execute(
+                in_tables,
+                {"schema": "market", "tables": table_names},
+            )
+            .scalars()
+            .all()
+        )
+        leftover_public = set(
+            conn.execute(
+                in_tables,
+                {"schema": "public", "tables": table_names},
+            )
+            .scalars()
+            .all()
+        )
+        nfl_tables = conn.execute(
+            text(
+                """
+                SELECT tablename
+                FROM pg_tables
+                WHERE schemaname = 'nfl'
+                """
+            )
+        ).all()
+        partition_schemas = set(
+            conn.execute(
+                text(
+                    """
+                    SELECT n.nspname
+                    FROM pg_inherits AS i
+                    JOIN pg_class AS child ON child.oid = i.inhrelid
+                    JOIN pg_class AS parent ON parent.oid = i.inhparent
+                    JOIN pg_namespace AS n ON n.oid = child.relnamespace
+                    JOIN pg_namespace AS pn ON pn.oid = parent.relnamespace
+                    WHERE pn.nspname = 'market'
+                      AND parent.relname = 'odds_observation'
+                    """
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert market_tables == MARKET_TABLES
+    assert leftover_public == set()
+    assert nfl_tables == []
+    assert partition_schemas == {"market"}
+
+
 def test_no_timestamp_without_time_zone(migrated_engine: Engine) -> None:
     with migrated_engine.connect() as conn:
         naive = conn.execute(
             text(
                 """
-                SELECT table_name, column_name
+                SELECT table_schema, table_name, column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public'
+                WHERE table_schema IN ('public', 'market', 'nfl')
                   AND data_type = 'timestamp without time zone'
                 """
             )
