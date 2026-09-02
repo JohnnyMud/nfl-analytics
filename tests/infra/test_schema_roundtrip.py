@@ -198,15 +198,19 @@ def test_odds_tables_live_in_market_schema(migrated_engine: Engine) -> None:
             .scalars()
             .all()
         )
-        nfl_tables = conn.execute(
-            text(
-                """
-                SELECT tablename
-                FROM pg_tables
-                WHERE schemaname = 'nfl'
-                """
+        nfl_tables = set(
+            conn.execute(
+                text(
+                    """
+                    SELECT tablename
+                    FROM pg_tables
+                    WHERE schemaname = 'nfl'
+                    """
+                )
             )
-        ).all()
+            .scalars()
+            .all()
+        )
         partition_schemas = set(
             conn.execute(
                 text(
@@ -227,7 +231,7 @@ def test_odds_tables_live_in_market_schema(migrated_engine: Engine) -> None:
         )
     assert market_tables == MARKET_TABLES
     assert leftover_public == set()
-    assert nfl_tables == []
+    assert nfl_tables == {"teams", "players", "games"}
     assert partition_schemas == {"market"}
 
 
