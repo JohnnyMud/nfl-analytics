@@ -8,7 +8,6 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 EXPECTED_PARTITIONS = {
-    "odds_observation_2026_08",
     "odds_observation_2026_09",
     "odds_observation_2026_10",
     "odds_observation_2026_11",
