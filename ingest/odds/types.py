@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, NewType
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+
+SnapshotId = NewType("SnapshotId", int)
 
 
 def _require_aware(value: datetime) -> datetime:
@@ -77,3 +79,24 @@ class FixtureResult(_VendorEnvelope):
     home_score: int | None
     away_score: int | None
     vendor_timestamp: AwareDatetime | None
+
+
+class SnapshotScope(BaseModel):
+    """Requested capture scope. Stored on odds_snapshot; never inferred from quotes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    vendor_fixture_ids: list[str]
+    sportsbooks: list[str]
+    markets: list[str]
+
+
+class WriteStats(BaseModel):
+    """Counts from write_quotes. close_snapshot persists these onto the snapshot row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    quotes_seen: int
+    quotes_written: int
+    max_vendor_ts: AwareDatetime | None
+    requests_made: int = 0
