@@ -19,11 +19,11 @@ def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> N
             """
             INSERT INTO nfl.teams (
                 team_abbr, franchise_id, team_name, team_nick,
-                team_conf, team_division, ingested_at, raw
+                team_conf, team_division, ingested_at
             )
             VALUES (
                 :abbr, :franchise_id, :name, :nick,
-                :conf, :division, :ingested_at, CAST(:raw AS jsonb)
+                :conf, :division, :ingested_at
             )
             """
         ),
@@ -35,7 +35,6 @@ def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> N
             "conf": "AFC",
             "division": "AFC West",
             "ingested_at": datetime(2026, 9, 2, 19, 0, 0, tzinfo=UTC),
-            "raw": "{}",
         },
     )
 
@@ -59,11 +58,10 @@ def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
             text(
                 """
                 INSERT INTO nfl.players (
-                    gsis_id, display_name, latest_team, ingested_at, raw
+                    gsis_id, display_name, latest_team, ingested_at
                 )
                 VALUES (
-                    :gsis_id, :display_name, :latest_team, :ingested_at,
-                    CAST(:raw AS jsonb)
+                    :gsis_id, :display_name, :latest_team, :ingested_at
                 )
                 """
             ),
@@ -72,7 +70,6 @@ def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
                 "display_name": "Test Quarterback",
                 "latest_team": "HHH",
                 "ingested_at": ingested_at,
-                "raw": '{"gsis_id": "00-0000001"}',
             },
         )
         conn.execute(
@@ -81,12 +78,12 @@ def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
                 INSERT INTO nfl.games (
                     game_id, season, game_type, week, game_date, game_time,
                     kickoff_at, away_team, home_team, home_qb_id,
-                    ingested_at, raw
+                    ingested_at
                 )
                 VALUES (
                     :game_id, :season, :game_type, :week, :game_date, :game_time,
                     :kickoff_at, :away_team, :home_team, :home_qb_id,
-                    :ingested_at, CAST(:raw AS jsonb)
+                    :ingested_at
                 )
                 """
             ),
@@ -102,7 +99,6 @@ def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
                 "home_team": "HHH",
                 "home_qb_id": "00-0000001",
                 "ingested_at": ingested_at,
-                "raw": '{"game_id": "2026_01_AAA_HHH"}',
             },
         )
 
@@ -146,11 +142,11 @@ def test_games_reject_unknown_team(migrated_engine: Engine) -> None:
                     """
                     INSERT INTO nfl.games (
                         game_id, season, game_type, week, game_date,
-                        away_team, home_team, ingested_at, raw
+                        away_team, home_team, ingested_at
                     )
                     VALUES (
                         :game_id, :season, :game_type, :week, :game_date,
-                        :away_team, :home_team, :ingested_at, CAST(:raw AS jsonb)
+                        :away_team, :home_team, :ingested_at
                     )
                     """
                 ),
@@ -163,7 +159,6 @@ def test_games_reject_unknown_team(migrated_engine: Engine) -> None:
                     "away_team": "ZZZ",
                     "home_team": "WWW",
                     "ingested_at": datetime(2026, 9, 2, 19, 0, 0, tzinfo=UTC),
-                    "raw": "{}",
                 },
             )
 
@@ -177,11 +172,11 @@ def test_relocation_abbrs_share_franchise_id(migrated_engine: Engine) -> None:
                     """
                     INSERT INTO nfl.teams (
                         team_abbr, franchise_id, team_name, team_nick,
-                        team_conf, team_division, ingested_at, raw
+                        team_conf, team_division, ingested_at
                     )
                     VALUES (
                         :abbr, '2510', :name, 'Rams',
-                        'NFC', 'NFC West', :ingested_at, CAST(:raw AS jsonb)
+                        'NFC', 'NFC West', :ingested_at
                     )
                     """
                 ),
@@ -189,7 +184,6 @@ def test_relocation_abbrs_share_franchise_id(migrated_engine: Engine) -> None:
                     "abbr": abbr,
                     "name": name,
                     "ingested_at": ingested_at,
-                    "raw": "{}",
                 },
             )
         rows = (
