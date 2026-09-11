@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from datetime import UTC, datetime
@@ -11,6 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
+from common.env import database_url, load_dotenv
 from common.logging import configure_logging, get_logger
 from ingest.odds.config import CaptureConfig
 from ingest.odds.orchestrator import Orchestrator, TickStats
@@ -21,6 +21,7 @@ _log = get_logger("ingest.odds.cli")
 
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
+    load_dotenv()
     parser = argparse.ArgumentParser(prog="python -m ingest.odds")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -42,11 +43,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_tick(*, dry_run: bool) -> int:
-    database_url = _require_database_url()
-    if database_url is None:
+    url = _require_database_url()
+    if url is None:
         return 1
     config = CaptureConfig.from_env()
-    engine = create_engine(database_url)
+    engine = create_engine(url)
     try:
         with TheOddsApiAdapter(
             monthly_credit_budget=config.monthly_credit_budget,
@@ -60,11 +61,11 @@ def _cmd_tick(*, dry_run: bool) -> int:
 
 
 def _cmd_loop() -> int:
-    database_url = _require_database_url()
-    if database_url is None:
+    url = _require_database_url()
+    if url is None:
         return 1
     config = CaptureConfig.from_env()
-    engine: Engine = create_engine(database_url)
+    engine: Engine = create_engine(url)
     interval = config.tick_interval.total_seconds()
     try:
         with TheOddsApiAdapter(
@@ -83,11 +84,11 @@ def _cmd_loop() -> int:
 
 
 def _require_database_url() -> str | None:
-    database_url = os.environ.get("DATABASE_URL", "")
-    if not database_url:
+    url = database_url()
+    if not url:
         _log.error("DATABASE_URL is missing")
         return None
-    return database_url
+    return url
 
 
 def _emit_plan(stats: TickStats) -> None:
