@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Generator
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from common.env import database_url, load_dotenv
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
 
 def _require_database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
+    load_dotenv()
+    url = database_url()
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
     return url

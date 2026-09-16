@@ -1,0 +1,240 @@
+:root {
+  color-scheme: dark;
+  --bg: #12110e;
+  --bg-elevated: #1b1a16;
+  --surface: #22211c;
+  --ink: #f3efe4;
+  --muted: #a39c8c;
+  --line: #3a372f;
+  --gold: #d4b36a;
+  --danger: #e07a5f;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(212, 179, 106, 0.08), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.4rem;
+}
+
+h1 {
+  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+.app-shell {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.site-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 2.5rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-home {
+  padding-top: 2.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: var(--gold);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lede,
+.muted {
+  color: var(--muted);
+  max-width: 36rem;
+}
+
+.lede {
+  margin: 0 0 2rem;
+  font-size: 1.05rem;
+}
+
+.crumb {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.selector {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 28rem;
+}
+
+.selector-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.selector-control {
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23d4b36a' d='M1 1l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  color: var(--ink);
+  font: inherit;
+  padding: 0.85rem 2.4rem 0.85rem 0.95rem;
+}
+
+.selector-control:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.selector-control:disabled {
+  opacity: 0.6;
+}
+
+.banner {
+  border-radius: 0.4rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.banner-error {
+  background: rgba(224, 122, 95, 0.12);
+  color: var(--danger);
+}
+
+.team-card,
+.player-card,
+.panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 1.25rem;
+}
+
+.team-card {
+  border-top-width: 6px;
+  margin: 1.25rem 0;
+}
+
+.team-card-identity,
+.player-card {
+  display: flex;
+  gap: 1.1rem;
+  align-items: center;
+}
+
+.team-card-logo,
+.player-headshot {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.5rem;
+}
+
+.player-headshot {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+}
+
+.team-card-logo-fallback,
+.player-headshot-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.team-card-name {
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+}
+
+.team-card-swatches {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.swatch {
+  width: 1.6rem;
+  height: 0.55rem;
+  border-radius: 999px;
+}
+
+.panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.9rem 1.25rem;
+  margin: 1.1rem 0 0;
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 0.15rem 0 0;
+}

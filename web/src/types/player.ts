@@ -1,0 +1,23 @@
+export type Player = {
+  gsis_id: string;
+  display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  short_name: string | null;
+  position_group: string | null;
+  position: string | null;
+  height: number | null;
+  weight: number | null;
+  headshot: string | null;
+  college_name: string | null;
+  jersey_number: string | null;
+  rookie_season: number | null;
+  last_season: number | null;
+  latest_team: string | null;
+  status: string | null;
+  years_of_experience: number | null;
+  draft_year: number | null;
+  draft_round: number | null;
+  draft_pick: number | null;
+  draft_team: string | null;
+};

@@ -3,7 +3,7 @@ PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else e
 
 export DATABASE_URL ?= postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
-.PHONY: setup db-up migrate test lint capture-dry
+.PHONY: setup db-up migrate test lint capture-dry api web
 
 setup:
 	python3 -m venv .venv
@@ -28,3 +28,9 @@ lint:
 
 capture-dry:
 	$(PYTHON) -m ingest.odds tick --dry-run
+
+api:
+	$(PYTHON) -m api
+
+web:
+	npm --prefix web run dev
