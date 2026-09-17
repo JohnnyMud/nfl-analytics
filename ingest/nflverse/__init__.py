@@ -1,1 +1,1 @@
-"""nflverse dimension ingest: teams, players, and games."""
+"""nflverse ingest: teams, players, games, and weekly player stats."""

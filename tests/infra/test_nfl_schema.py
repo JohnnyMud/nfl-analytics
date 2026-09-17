@@ -1,4 +1,4 @@
-"""NFL dimension table constraints and UTC round-trip."""
+"""NFL dimension and player_stats constraints and UTC round-trip."""
 
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
-_MIGRATION = Path("alembic/versions/0004_nfl_dimension_tables.py")
+_DIMENSION_MIGRATION = Path("alembic/versions/0004_nfl_dimension_tables.py")
+_PLAYER_STATS_MIGRATION = Path("alembic/versions/0006_nfl_player_stats.py")
 
 
 def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> None:
@@ -39,12 +40,75 @@ def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> N
     )
 
 
+def _insert_player(conn: Connection, gsis_id: str, latest_team: str) -> None:
+    conn.execute(
+        text(
+            """
+            INSERT INTO nfl.players (
+                gsis_id, display_name, latest_team, ingested_at
+            )
+            VALUES (
+                :gsis_id, :display_name, :latest_team, :ingested_at
+            )
+            """
+        ),
+        {
+            "gsis_id": gsis_id,
+            "display_name": "Test Player",
+            "latest_team": latest_team,
+            "ingested_at": datetime(2026, 9, 2, 19, 0, 0, tzinfo=UTC),
+        },
+    )
+
+
+def _insert_game(
+    conn: Connection,
+    game_id: str,
+    away_team: str,
+    home_team: str,
+    home_qb_id: str | None = None,
+) -> None:
+    conn.execute(
+        text(
+            """
+            INSERT INTO nfl.games (
+                game_id, season, game_type, week, game_date, game_time,
+                kickoff_at, away_team, home_team, home_qb_id,
+                ingested_at
+            )
+            VALUES (
+                :game_id, :season, :game_type, :week, :game_date, :game_time,
+                :kickoff_at, :away_team, :home_team, :home_qb_id,
+                :ingested_at
+            )
+            """
+        ),
+        {
+            "game_id": game_id,
+            "season": 2026,
+            "game_type": "REG",
+            "week": 1,
+            "game_date": date(2026, 9, 13),
+            "game_time": time(13, 0),
+            "kickoff_at": datetime(2026, 9, 13, 17, 0, 0, tzinfo=UTC),
+            "away_team": away_team,
+            "home_team": home_team,
+            "home_qb_id": home_qb_id,
+            "ingested_at": datetime(2026, 9, 2, 19, 0, 0, tzinfo=UTC),
+        },
+    )
+
+
 def test_migration_creates_empty_nfl_tables() -> None:
-    source = _MIGRATION.read_text()
+    source = _DIMENSION_MIGRATION.read_text()
     assert "CREATE TABLE nfl.teams" in source
     assert "CREATE TABLE nfl.players" in source
     assert "CREATE TABLE nfl.games" in source
     assert "INSERT INTO" not in source.upper()
+
+    player_stats_source = _PLAYER_STATS_MIGRATION.read_text()
+    assert "CREATE TABLE nfl.player_stats" in player_stats_source
+    assert "INSERT INTO" not in player_stats_source.upper()
 
 
 def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
@@ -194,3 +258,174 @@ def test_relocation_abbrs_share_franchise_id(migrated_engine: Engine) -> None:
             .all()
         )
     assert set(rows) == {"LA", "STL"}
+
+
+def test_player_stats_round_trip(migrated_engine: Engine) -> None:
+    ingested_at = datetime(2026, 9, 15, 3, 0, 0, tzinfo=UTC)
+    gsis_id = "00-0090001"
+    game_id = "2026_01_PSA_PSH"
+
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "PSA", "9101", "Player Stats Away")
+        _insert_team(conn, "PSH", "9102", "Player Stats Home")
+        _insert_player(conn, gsis_id, "PSH")
+        _insert_game(conn, game_id, "PSA", "PSH", home_qb_id=gsis_id)
+        conn.execute(
+            text(
+                """
+                INSERT INTO nfl.player_stats (
+                    gsis_id, season, week, season_type, game_id,
+                    team, opponent_team, passing_yards, passing_epa,
+                    ingested_at
+                )
+                VALUES (
+                    :gsis_id, :season, :week, :season_type, :game_id,
+                    :team, :opponent_team, :passing_yards, :passing_epa,
+                    :ingested_at
+                )
+                """
+            ),
+            {
+                "gsis_id": gsis_id,
+                "season": 2026,
+                "week": 1,
+                "season_type": "REG",
+                "game_id": game_id,
+                "team": "PSH",
+                "opponent_team": "PSA",
+                "passing_yards": 275,
+                "passing_epa": 8.5,
+                "ingested_at": ingested_at,
+            },
+        )
+
+    with migrated_engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT
+                    gsis_id,
+                    game_id,
+                    passing_yards,
+                    passing_epa,
+                    ingested_at
+                FROM nfl.player_stats
+                WHERE gsis_id = :gsis_id AND game_id = :game_id
+                """
+            ),
+            {"gsis_id": gsis_id, "game_id": game_id},
+        ).one()
+
+    assert row.ingested_at.tzinfo is not None
+    assert row.ingested_at.utcoffset() is not None
+    assert row.ingested_at.utcoffset().total_seconds() == 0
+    assert row.ingested_at == ingested_at
+    assert row.gsis_id == gsis_id
+    assert row.game_id == game_id
+    assert row.passing_yards == 275
+    assert row.passing_epa == 8.5
+
+
+def test_player_stats_reject_unknown_gsis_id(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "PGA", "9103", "Unknown Player Away")
+        _insert_team(conn, "PGH", "9104", "Unknown Player Home")
+        _insert_game(conn, "2026_01_PGA_PGH", "PGA", "PGH")
+
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO nfl.player_stats (
+                        gsis_id, season, week, season_type, game_id,
+                        team, opponent_team, ingested_at
+                    )
+                    VALUES (
+                        :gsis_id, :season, :week, :season_type, :game_id,
+                        :team, :opponent_team, :ingested_at
+                    )
+                    """
+                ),
+                {
+                    "gsis_id": "00-00MISSING",
+                    "season": 2026,
+                    "week": 1,
+                    "season_type": "REG",
+                    "game_id": "2026_01_PGA_PGH",
+                    "team": "PGH",
+                    "opponent_team": "PGA",
+                    "ingested_at": datetime(2026, 9, 15, 3, 0, 0, tzinfo=UTC),
+                },
+            )
+
+
+def test_player_stats_reject_unknown_game_id(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "GGA", "9105", "Unknown Game Away")
+        _insert_team(conn, "GGH", "9106", "Unknown Game Home")
+        _insert_player(conn, "00-0090002", "GGH")
+
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO nfl.player_stats (
+                        gsis_id, season, week, season_type, game_id,
+                        team, opponent_team, ingested_at
+                    )
+                    VALUES (
+                        :gsis_id, :season, :week, :season_type, :game_id,
+                        :team, :opponent_team, :ingested_at
+                    )
+                    """
+                ),
+                {
+                    "gsis_id": "00-0090002",
+                    "season": 2026,
+                    "week": 1,
+                    "season_type": "REG",
+                    "game_id": "2026_01_MISSING",
+                    "team": "GGH",
+                    "opponent_team": "GGA",
+                    "ingested_at": datetime(2026, 9, 15, 3, 0, 0, tzinfo=UTC),
+                },
+            )
+
+
+def test_player_stats_reject_unknown_team(migrated_engine: Engine) -> None:
+    gsis_id = "00-0090003"
+    game_id = "2026_01_TGA_TGH"
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "TGA", "9107", "Unknown Team Away")
+        _insert_team(conn, "TGH", "9108", "Unknown Team Home")
+        _insert_player(conn, gsis_id, "TGH")
+        _insert_game(conn, game_id, "TGA", "TGH", home_qb_id=gsis_id)
+
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO nfl.player_stats (
+                        gsis_id, season, week, season_type, game_id,
+                        team, opponent_team, ingested_at
+                    )
+                    VALUES (
+                        :gsis_id, :season, :week, :season_type, :game_id,
+                        :team, :opponent_team, :ingested_at
+                    )
+                    """
+                ),
+                {
+                    "gsis_id": gsis_id,
+                    "season": 2026,
+                    "week": 1,
+                    "season_type": "REG",
+                    "game_id": game_id,
+                    "team": "ZZZ",
+                    "opponent_team": "TGA",
+                    "ingested_at": datetime(2026, 9, 15, 3, 0, 0, tzinfo=UTC),
+                },
+            )
