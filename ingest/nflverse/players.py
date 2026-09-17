@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
-from common.env import load_dotenv
+from common.settings import get_settings
 
 # Released / retired rows stay on the seasonal roster file; they are not
 # currently on a club. Practice squad (DEV), reserve lists, and exempt stay.
@@ -91,16 +90,6 @@ def prepare_players(
     )
 
 
-def _adbc_database_url() -> str:
-    load_dotenv()
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    if url.startswith("postgresql+psycopg://"):
-        return "postgresql://" + url.removeprefix("postgresql+psycopg://")
-    return url
-
-
 def main() -> None:
     ingested_at = datetime.now(UTC)
     season = nfl.get_current_season()
@@ -111,7 +100,7 @@ def main() -> None:
     )
     players.write_database(
         table_name="nfl.players",
-        connection=_adbc_database_url(),
+        connection=get_settings().postgres_url,
         engine="adbc",
         if_table_exists="append",
     )

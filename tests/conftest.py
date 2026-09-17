@@ -12,12 +12,16 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
 
+from common.settings import AppEnvironment, get_settings
+
 
 def _require_database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    return url
+    settings = get_settings()
+    if settings.app_env is AppEnvironment.PRODUCTION:
+        raise RuntimeError(
+            "refusing to create throwaway test databases against APP_ENV=production"
+        )
+    return settings.sqlalchemy_url
 
 
 @pytest.fixture(scope="session")

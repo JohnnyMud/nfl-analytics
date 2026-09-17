@@ -1,7 +1,11 @@
 # Prefer the local venv after `make setup`; CI uses the runner's Python.
 PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 
-export DATABASE_URL ?= postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
+# App commands (migrate, capture, api) read DATABASE_URL from `.env` locally
+# or from the process environment (GitHub Actions secrets in production).
+# Tests always pin local Postgres so a production URL in `.env` cannot drop
+# throwaway databases against Supabase.
+TEST_DATABASE_URL := postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
 .PHONY: setup db-up migrate test lint capture-dry api web
 
@@ -19,7 +23,7 @@ migrate:
 	$(PYTHON) -m alembic upgrade head
 
 test:
-	$(PYTHON) -m pytest
+	DATABASE_URL=$(TEST_DATABASE_URL) APP_ENV=ci $(PYTHON) -m pytest
 
 lint:
 	$(PYTHON) -m ruff check .

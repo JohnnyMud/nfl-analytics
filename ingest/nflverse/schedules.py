@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from io import StringIO
 
@@ -10,7 +9,7 @@ import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 import psycopg
 
-from common.env import load_dotenv
+from common.settings import get_settings
 
 # nflverse ``gametime`` is the published Eastern clock, not the host TZ.
 _KICKOFF_TZ = "America/New_York"
@@ -113,16 +112,6 @@ def _kickoff_at() -> pl.Expr:
     ).dt.convert_time_zone("UTC")
 
 
-def _postgres_url() -> str:
-    load_dotenv()
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    if url.startswith("postgresql+psycopg://"):
-        return "postgresql://" + url.removeprefix("postgresql+psycopg://")
-    return url
-
-
 def _write_games(frame: pl.DataFrame) -> None:
     if frame.is_empty():
         raise RuntimeError("no games to ingest")
@@ -133,7 +122,7 @@ def _write_games(frame: pl.DataFrame) -> None:
         + ", ".join(_GAME_COLUMNS)
         + ") FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')"
     )
-    with psycopg.connect(_postgres_url()) as conn:
+    with psycopg.connect(get_settings().postgres_url) as conn:
         with conn.cursor() as cur:
             with cur.copy(copy_sql) as copy:
                 copy.write(buf.getvalue())

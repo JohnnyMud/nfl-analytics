@@ -7,11 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.players import router as players_router
 from api.routes.teams import router as teams_router
-from common.env import load_dotenv
+from common.settings import get_settings
 
 
 def create_app() -> FastAPI:
-    load_dotenv()
+    get_settings()
     app = FastAPI(title="NFL Analytics", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,

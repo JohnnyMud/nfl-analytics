@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
-from common.env import database_url, load_dotenv
 from common.logging import configure_logging, get_logger
+from common.settings import Settings, get_settings
 from ingest.odds.config import CaptureConfig
 from ingest.odds.orchestrator import Orchestrator, TickStats
 from ingest.odds.the_odds_api import TheOddsApiAdapter
@@ -21,7 +21,6 @@ _log = get_logger("ingest.odds.cli")
 
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
-    load_dotenv()
     parser = argparse.ArgumentParser(prog="python -m ingest.odds")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -43,14 +42,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_tick(*, dry_run: bool) -> int:
-    url = _require_database_url()
-    if url is None:
+    settings = _load_settings()
+    if settings is None:
         return 1
     config = CaptureConfig.from_env()
-    engine = create_engine(url)
+    engine = create_engine(settings.sqlalchemy_url)
     try:
         with TheOddsApiAdapter(
             monthly_credit_budget=config.monthly_credit_budget,
+            api_key=_odds_api_key(settings),
         ) as provider:
             orch = Orchestrator(engine, provider, config)
             stats = orch.run_tick(datetime.now(UTC), dry_run=dry_run)
@@ -61,15 +61,16 @@ def _cmd_tick(*, dry_run: bool) -> int:
 
 
 def _cmd_loop() -> int:
-    url = _require_database_url()
-    if url is None:
+    settings = _load_settings()
+    if settings is None:
         return 1
     config = CaptureConfig.from_env()
-    engine: Engine = create_engine(url)
+    engine: Engine = create_engine(settings.sqlalchemy_url)
     interval = config.tick_interval.total_seconds()
     try:
         with TheOddsApiAdapter(
             monthly_credit_budget=config.monthly_credit_budget,
+            api_key=_odds_api_key(settings),
         ) as provider:
             orch = Orchestrator(engine, provider, config)
             while True:
@@ -83,12 +84,20 @@ def _cmd_loop() -> int:
         engine.dispose()
 
 
-def _require_database_url() -> str | None:
-    url = database_url()
-    if not url:
+def _load_settings() -> Settings | None:
+    try:
+        return get_settings()
+    except RuntimeError as exc:
+        if "DATABASE_URL is not set" not in str(exc):
+            raise
         _log.error("DATABASE_URL is missing")
         return None
-    return url
+
+
+def _odds_api_key(settings: Settings) -> str | None:
+    if settings.odds_api_key is None:
+        return None
+    return settings.odds_api_key.get_secret_value()
 
 
 def _emit_plan(stats: TickStats) -> None:

@@ -1,4 +1,4 @@
-"""Engine and short-lived sessions. URL comes from DATABASE_URL only."""
+"""Engine and short-lived sessions. URL comes from Settings."""
 
 from __future__ import annotations
 
@@ -7,18 +7,14 @@ from collections.abc import Generator
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from common.env import database_url, load_dotenv
+from common.settings import get_settings
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
 
 def _require_database_url() -> str:
-    load_dotenv()
-    url = database_url()
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    return url
+    return get_settings().sqlalchemy_url
 
 
 def get_engine() -> Engine:

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2",
+    "pydantic-settings>=2",
     "sqlalchemy>=2.0,<3",
     "alembic",
     "httpx",
@@ -69,6 +70,7 @@ known-first-party = [
 python_version = "3.12"
 strict = true
 files = ["features", "models", "ingest"]
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

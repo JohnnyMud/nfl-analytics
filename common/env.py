@@ -9,8 +9,9 @@ from pathlib import Path
 def load_dotenv(path: Path | None = None) -> Path | None:
     """Populate ``os.environ`` from a ``.env`` file.
 
-    Existing environment variables win. Returns the path that was loaded, or
-    ``None`` if no file was found.
+    Existing environment variables win, so GitHub Actions secrets override a
+    local file. Returns the path that was loaded, or ``None`` if no file was
+    found.
     """
     for candidate in _candidate_paths(path):
         if not candidate.is_file():
@@ -18,14 +19,6 @@ def load_dotenv(path: Path | None = None) -> Path | None:
         _apply_env_file(candidate)
         return candidate
     return None
-
-
-def database_url() -> str | None:
-    """``DATABASE_URL`` with a psycopg3 driver if the scheme was bare."""
-    raw = os.environ.get("DATABASE_URL", "").strip()
-    if not raw:
-        return None
-    return _with_psycopg_driver(raw)
 
 
 def _candidate_paths(explicit: Path | None) -> list[Path]:
@@ -58,12 +51,3 @@ def _unquote(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
         return value[1:-1]
     return value
-
-
-def _with_psycopg_driver(url: str) -> str:
-    if url.startswith("postgresql+"):
-        return url
-    for prefix in ("postgresql://", "postgres://"):
-        if url.startswith(prefix):
-            return "postgresql+psycopg://" + url.removeprefix(prefix)
-    return url
