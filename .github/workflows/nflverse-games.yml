@@ -1,0 +1,31 @@
+name: nflverse games
+
+# nflverse schedules update every 5 minutes; we do not. Once a day after
+# their 09:03 UTC rebuild (Sep–Dec, Jan–Feb) is enough for scores/kickoffs.
+on:
+  schedule:
+    - cron: "0 10 * 1,2,9-12 *"
+  workflow_dispatch:
+
+concurrency:
+  group: nflverse-games
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Upsert games
+        run: python -m ingest.nflverse.schedules

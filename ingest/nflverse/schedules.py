@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from io import StringIO
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
-import psycopg
 
 from common.settings import get_settings
+from ingest.nflverse.write import upsert_frame
 
 # nflverse ``gametime`` is the published Eastern clock, not the host TZ.
 _KICKOFF_TZ = "America/New_York"
 
-# ADBC's Postgres COPY writer cannot ingest Polars Time (ns) or Float64 into
-# numeric(4,1). Text COPY via psycopg does both. Column order matches nfl.games.
+# Text COPY via psycopg (see write.upsert_frame): ADBC cannot ingest Polars
+# Time (ns) or Float64 into numeric(4,1). Column order matches nfl.games.
 _GAME_COLUMNS = (
     "game_id",
     "season",
@@ -112,23 +111,6 @@ def _kickoff_at() -> pl.Expr:
     ).dt.convert_time_zone("UTC")
 
 
-def _write_games(frame: pl.DataFrame) -> None:
-    if frame.is_empty():
-        raise RuntimeError("no games to ingest")
-    buf = StringIO()
-    frame.select(*_GAME_COLUMNS).write_csv(buf)
-    copy_sql = (
-        "COPY nfl.games ("
-        + ", ".join(_GAME_COLUMNS)
-        + ") FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')"
-    )
-    with psycopg.connect(get_settings().postgres_url) as conn:
-        with conn.cursor() as cur:
-            with cur.copy(copy_sql) as copy:
-                copy.write(buf.getvalue())
-        conn.commit()
-
-
 def main() -> None:
     ingested_at = datetime.now(UTC)
     season = nfl.get_current_season()
@@ -137,7 +119,14 @@ def main() -> None:
         ingested_at=ingested_at,
         season=season,
     )
-    _write_games(games)
+    upsert_frame(
+        games,
+        table="nfl.games",
+        columns=_GAME_COLUMNS,
+        conflict=("game_id",),
+        connection_url=get_settings().postgres_url,
+        empty_message="no games to ingest",
+    )
 
 
 if __name__ == "__main__":

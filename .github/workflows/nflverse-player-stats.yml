@@ -1,0 +1,42 @@
+name: nflverse player stats
+
+# After nflverse-pbp update_data.yaml (Sep–Dec, Jan–Feb), plus ~25–30 min.
+# Daily 09:30 UTC is also the Thursday correction pass.
+on:
+  schedule:
+    # After nflverse daily 09:03 UTC.
+    - cron: "30 9 * 1,2,9-12 *"
+    # After nflverse TNF 05:33 UTC Friday.
+    - cron: "0 6 * 1,2,9-12 5"
+    # After nflverse early Sunday window 22:03 UTC.
+    - cron: "30 22 * 1,2,9-12 0"
+    # After nflverse late Sunday window 00:07 UTC Monday.
+    - cron: "30 0 * 1,2,9-12 1"
+    # After nflverse SNF 05:33 UTC Monday.
+    - cron: "0 6 * 1,2,9-12 1"
+    # After nflverse MNF 05:33 UTC Tuesday.
+    - cron: "0 6 * 1,2,9-12 2"
+  workflow_dispatch:
+
+concurrency:
+  group: nflverse-player-stats
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Upsert player stats
+        run: python -m ingest.nflverse.player_stats

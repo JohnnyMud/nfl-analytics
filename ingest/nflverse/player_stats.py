@@ -8,6 +8,7 @@ import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.write import upsert_frame
 
 # Order matches nfl.player_stats / PlayerStat. nflverse `player_id` is renamed
 # to `gsis_id` before this select.
@@ -203,13 +204,13 @@ def main() -> None:
         ingested_at=ingested_at,
         season=season,
     )
-    if stats.is_empty():
-        raise RuntimeError("no player stats to ingest")
-    stats.write_database(
-        table_name="nfl.player_stats",
-        connection=get_settings().postgres_url,
-        engine="adbc",
-        if_table_exists="append",
+    upsert_frame(
+        stats,
+        table="nfl.player_stats",
+        columns=_STAT_COLUMNS,
+        conflict=("gsis_id", "game_id"),
+        connection_url=get_settings().postgres_url,
+        empty_message="no player stats to ingest",
     )
 
 

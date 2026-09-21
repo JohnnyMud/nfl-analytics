@@ -8,6 +8,7 @@ import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.write import upsert_frame
 
 _INJURY_COLUMNS = (
     "season",
@@ -65,13 +66,14 @@ def main() -> None:
         ingested_at=ingested_at,
         season=season,
     )
-    if injuries.is_empty():
-        raise RuntimeError("no injuries to ingest")
-    injuries.write_database(
-        table_name="nfl.injuries",
-        connection=get_settings().postgres_url,
-        engine="adbc",
-        if_table_exists="append",
+    upsert_frame(
+        injuries,
+        table="nfl.injuries",
+        columns=_INJURY_COLUMNS,
+        conflict=("gsis_id", "season", "week", "game_type"),
+        connection_url=get_settings().postgres_url,
+        empty_message="no injuries to ingest",
+        delete_absent_for_season=season,
     )
 
 
