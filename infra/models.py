@@ -1,4 +1,5 @@
-"""SQLAlchemy mappings for nfl.teams, nfl.players, nfl.games, and nfl.player_stats.
+"""SQLAlchemy mappings for nfl.teams, nfl.players, nfl.games, nfl.player_stats,
+and nfl.injuries.
 
 Alembic DDL is the source of truth. These classes mirror that schema for
 typed reads/writes. Do not map market.odds_observation.
@@ -298,4 +299,29 @@ class PlayerStat(Base):
     pt_net_yards: Mapped[int | None]
     fantasy_points: Mapped[float | None]
     fantasy_points_ppr: Mapped[float | None]
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Injury(Base):
+    __tablename__ = "injuries"
+    __table_args__ = {"schema": "nfl"}
+
+    season: Mapped[int] = mapped_column(primary_key=True)
+    season_type: Mapped[str]
+    game_type: Mapped[str] = mapped_column(primary_key=True)
+    team: Mapped[str] = mapped_column(ForeignKey("nfl.teams.team_abbr"))
+    week: Mapped[int] = mapped_column(primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(
+        ForeignKey("nfl.players.gsis_id"), primary_key=True
+    )
+    position: Mapped[str | None]
+    full_name: Mapped[str | None]
+    first_name: Mapped[str | None]
+    last_name: Mapped[str | None]
+    report_primary_injury: Mapped[str | None]
+    report_secondary_injury: Mapped[str | None]
+    report_status: Mapped[str | None]
+    practice_primary_injury: Mapped[str | None]
+    practice_secondary_injury: Mapped[str | None]
+    practice_status: Mapped[str | None]
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

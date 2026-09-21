@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 _DIMENSION_MIGRATION = Path("alembic/versions/0004_nfl_dimension_tables.py")
 _PLAYER_STATS_MIGRATION = Path("alembic/versions/0006_nfl_player_stats.py")
+_INJURIES_MIGRATION = Path("alembic/versions/0007_nfl_injuries.py")
 
 
 def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> None:
@@ -109,6 +110,10 @@ def test_migration_creates_empty_nfl_tables() -> None:
     player_stats_source = _PLAYER_STATS_MIGRATION.read_text()
     assert "CREATE TABLE nfl.player_stats" in player_stats_source
     assert "INSERT INTO" not in player_stats_source.upper()
+
+    injuries_source = _INJURIES_MIGRATION.read_text()
+    assert "CREATE TABLE nfl.injuries" in injuries_source
+    assert "INSERT INTO" not in injuries_source.upper()
 
 
 def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
@@ -427,5 +432,125 @@ def test_player_stats_reject_unknown_team(migrated_engine: Engine) -> None:
                     "team": "ZZZ",
                     "opponent_team": "TGA",
                     "ingested_at": datetime(2026, 9, 15, 3, 0, 0, tzinfo=UTC),
+                },
+            )
+
+
+def test_injuries_round_trip(migrated_engine: Engine) -> None:
+    ingested_at = datetime(2026, 9, 21, 19, 0, 0, tzinfo=UTC)
+    gsis_id = "00-0091001"
+
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "INJ", "9201", "Injury Team")
+        _insert_player(conn, gsis_id, "INJ")
+        conn.execute(
+            text(
+                """
+                INSERT INTO nfl.injuries (
+                    season, season_type, game_type, team, week, gsis_id,
+                    full_name, report_status, practice_status, ingested_at
+                )
+                VALUES (
+                    :season, :season_type, :game_type, :team, :week, :gsis_id,
+                    :full_name, :report_status, :practice_status, :ingested_at
+                )
+                """
+            ),
+            {
+                "season": 2026,
+                "season_type": "REG",
+                "game_type": "REG",
+                "team": "INJ",
+                "week": 2,
+                "gsis_id": gsis_id,
+                "full_name": "Test Injured",
+                "report_status": "Questionable",
+                "practice_status": "Limited Participation in Practice",
+                "ingested_at": ingested_at,
+            },
+        )
+
+    with migrated_engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT gsis_id, week, report_status, ingested_at
+                FROM nfl.injuries
+                WHERE gsis_id = :gsis_id AND season = 2026 AND week = 2
+                  AND game_type = 'REG'
+                """
+            ),
+            {"gsis_id": gsis_id},
+        ).one()
+
+    assert row.ingested_at.tzinfo is not None
+    assert row.ingested_at.utcoffset() is not None
+    assert row.ingested_at.utcoffset().total_seconds() == 0
+    assert row.ingested_at == ingested_at
+    assert row.gsis_id == gsis_id
+    assert row.week == 2
+    assert row.report_status == "Questionable"
+
+
+def test_injuries_reject_unknown_gsis_id(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "IGA", "9202", "Injury Unknown Player")
+
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO nfl.injuries (
+                        season, season_type, game_type, team, week, gsis_id,
+                        ingested_at
+                    )
+                    VALUES (
+                        :season, :season_type, :game_type, :team, :week, :gsis_id,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {
+                    "season": 2026,
+                    "season_type": "REG",
+                    "game_type": "REG",
+                    "team": "IGA",
+                    "week": 1,
+                    "gsis_id": "00-00MISSING",
+                    "ingested_at": datetime(2026, 9, 21, 19, 0, 0, tzinfo=UTC),
+                },
+            )
+
+
+def test_injuries_reject_unknown_team(migrated_engine: Engine) -> None:
+    gsis_id = "00-0091002"
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "ITH", "9203", "Injury Known Team")
+        _insert_player(conn, gsis_id, "ITH")
+
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO nfl.injuries (
+                        season, season_type, game_type, team, week, gsis_id,
+                        ingested_at
+                    )
+                    VALUES (
+                        :season, :season_type, :game_type, :team, :week, :gsis_id,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {
+                    "season": 2026,
+                    "season_type": "REG",
+                    "game_type": "REG",
+                    "team": "ZZZ",
+                    "week": 1,
+                    "gsis_id": gsis_id,
+                    "ingested_at": datetime(2026, 9, 21, 19, 0, 0, tzinfo=UTC),
                 },
             )

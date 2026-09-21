@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from infra.models import Game, Player, PlayerStat, Team
+from infra.models import Game, Injury, Player, PlayerStat, Team
 
 
 def _column_names(conn: Connection, table: str) -> list[str]:
@@ -35,3 +35,4 @@ def test_orm_columns_match_nfl_tables(migrated_engine: Engine) -> None:
         assert list(PlayerStat.__table__.c.keys()) == _column_names(
             conn, "player_stats"
         )
+        assert list(Injury.__table__.c.keys()) == _column_names(conn, "injuries")

@@ -231,7 +231,7 @@ def test_odds_tables_live_in_market_schema(migrated_engine: Engine) -> None:
         )
     assert market_tables == MARKET_TABLES
     assert leftover_public == set()
-    assert nfl_tables == {"teams", "players", "games", "player_stats"}
+    assert nfl_tables == {"teams", "players", "games", "player_stats", "injuries"}
     assert partition_schemas == {"market"}
 
 
