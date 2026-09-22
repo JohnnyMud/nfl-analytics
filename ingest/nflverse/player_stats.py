@@ -1,13 +1,20 @@
-"""Load current-season weekly nflverse player stats into nfl.player_stats."""
+"""Load weekly nflverse player stats into nfl.player_stats.
+
+Nightly writes the current season. Set NFLVERSE_SEASON_START/END to backfill
+a range; each season is prepared and upserted separately. Absent keys are
+not deleted.
+"""
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.seasons import seasons_from_env
 from ingest.nflverse.write import upsert_frame
 
 # Order matches nfl.player_stats / PlayerStat. nflverse `player_id` is renamed
@@ -198,20 +205,22 @@ def prepare_player_stats(
 
 def main() -> None:
     ingested_at = datetime.now(UTC)
-    season = nfl.get_current_season()
-    stats = prepare_player_stats(
-        nfl.load_player_stats(season),
-        ingested_at=ingested_at,
-        season=season,
-    )
-    upsert_frame(
-        stats,
-        table="nfl.player_stats",
-        columns=_STAT_COLUMNS,
-        conflict=("gsis_id", "game_id"),
-        connection_url=get_settings().postgres_url,
-        empty_message="no player stats to ingest",
-    )
+    current_season = int(nfl.get_current_season())
+    connection_url = get_settings().postgres_url
+    for season in seasons_from_env(os.environ, current_season=current_season):
+        stats = prepare_player_stats(
+            nfl.load_player_stats(season),
+            ingested_at=ingested_at,
+            season=season,
+        )
+        upsert_frame(
+            stats,
+            table="nfl.player_stats",
+            columns=_STAT_COLUMNS,
+            conflict=("gsis_id", "game_id"),
+            connection_url=connection_url,
+            empty_message="no player stats to ingest",
+        )
 
 
 if __name__ == "__main__":

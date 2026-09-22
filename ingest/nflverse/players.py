@@ -1,13 +1,23 @@
-"""Load 2026-season nflverse rosters into nfl.players."""
+"""Load nflverse rosters into nfl.players.
+
+Nightly (no season-range env) writes the current-season roster and drops
+CUT / RET. A multi-season backfill also upserts directory rows for every
+``gsis_id`` referenced by that season's weekly stats or injuries so fact-table
+FKs succeed. ``latest_team`` / ``status`` on those directory rows are
+current-as-of-directory, not historical features.
+"""
 
 from __future__ import annotations
 
+import os
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.seasons import seasons_from_env
 from ingest.nflverse.write import upsert_frame
 
 # Released / retired rows stay on the seasonal roster file; they are not
@@ -136,22 +146,109 @@ def prepare_players(
     ).select(*_PLAYER_COLUMNS)
 
 
+def prepare_referenced_players(
+    directory: pl.DataFrame,
+    referenced_ids: Sequence[str],
+    *,
+    ingested_at: datetime,
+) -> pl.DataFrame:
+    """Map ``load_players()`` directory rows onto ``nfl.players`` for FK targets.
+
+    Used so weekly stats and injuries can reference a ``gsis_id`` that is not
+    on the current roster (CUT / RET / career-only). Does not drop inactive
+    statuses. Ids absent from ``referenced_ids`` or from the directory are
+    omitted. ``ingested_at`` is supplied by the caller; this function does
+    not read the clock.
+    """
+    if ingested_at.tzinfo is None:
+        raise ValueError("ingested_at must be timezone-aware")
+    captured = ingested_at.astimezone(UTC)
+    wanted = [gsis_id for gsis_id in referenced_ids if gsis_id]
+    id_match = pl.col("gsis_id").is_in(wanted) if wanted else pl.lit(False)
+    return (
+        directory.with_columns(pl.col("gsis_id").cast(pl.String))
+        .filter(
+            pl.col("gsis_id").is_not_null() & (pl.col("gsis_id") != ""),
+            id_match,
+        )
+        .with_columns(
+            pl.col("birth_date").cast(pl.String).str.to_date("%Y-%m-%d"),
+            pl.col("jersey_number").cast(pl.String),
+            pl.lit(captured).alias("ingested_at"),
+        )
+        .select(*_PLAYER_COLUMNS)
+    )
+
+
+def referenced_gsis_ids(
+    stats: pl.DataFrame,
+    injuries: pl.DataFrame,
+) -> tuple[str, ...]:
+    """Unique ``gsis_id`` values from weekly stats (``player_id``) and injuries."""
+    return tuple(
+        dict.fromkeys(
+            (
+                *_string_ids(stats, "player_id"),
+                *_string_ids(injuries, "gsis_id"),
+            )
+        )
+    )
+
+
+def _string_ids(frame: pl.DataFrame, column: str) -> list[str]:
+    if column not in frame.columns:
+        raise ValueError(f"frame missing {column!r}")
+    values = (
+        frame.select(pl.col(column).cast(pl.String).alias("gsis_id"))
+        .filter(pl.col("gsis_id").is_not_null() & (pl.col("gsis_id") != ""))
+        .get_column("gsis_id")
+        .to_list()
+    )
+    return [str(value) for value in values]
+
+
 def main() -> None:
     ingested_at = datetime.now(UTC)
-    season = nfl.get_current_season()
-    players = prepare_players(
-        nfl.load_rosters(season),
-        nfl.load_players(),
-        ingested_at=ingested_at,
-    )
-    upsert_frame(
-        players,
-        table="nfl.players",
-        columns=_PLAYER_COLUMNS,
-        conflict=("gsis_id",),
-        connection_url=get_settings().postgres_url,
-        empty_message="no players to ingest",
-    )
+    current_season = int(nfl.get_current_season())
+    seasons = seasons_from_env(os.environ, current_season=current_season)
+    directory = nfl.load_players()
+    connection_url = get_settings().postgres_url
+    include_referenced = seasons != (current_season,)
+
+    for season in seasons:
+        players = prepare_players(
+            nfl.load_rosters(season),
+            directory,
+            ingested_at=ingested_at,
+        )
+        upsert_frame(
+            players,
+            table="nfl.players",
+            columns=_PLAYER_COLUMNS,
+            conflict=("gsis_id",),
+            connection_url=connection_url,
+            empty_message="no players to ingest",
+        )
+        if not include_referenced:
+            continue
+        referenced = prepare_referenced_players(
+            directory,
+            referenced_gsis_ids(
+                nfl.load_player_stats(season),
+                nfl.load_injuries(season),
+            ),
+            ingested_at=ingested_at,
+        )
+        if referenced.is_empty():
+            continue
+        upsert_frame(
+            referenced,
+            table="nfl.players",
+            columns=_PLAYER_COLUMNS,
+            conflict=("gsis_id",),
+            connection_url=connection_url,
+            empty_message="no referenced players to ingest",
+        )
 
 
 if __name__ == "__main__":
