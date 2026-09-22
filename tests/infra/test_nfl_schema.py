@@ -565,7 +565,7 @@ def test_injuries_reject_unknown_team(migrated_engine: Engine) -> None:
 
 def test_depth_charts_round_trip(migrated_engine: Engine) -> None:
     ingested_at = datetime(2026, 9, 22, 19, 0, 0, tzinfo=UTC)
-    gsis_id = "00-0092001"
+    gsis_id = "00-0094001"
 
     with migrated_engine.begin() as conn:
         _insert_team(conn, "DPT", "9301", "Depth Chart Team")
@@ -651,7 +651,7 @@ def test_depth_charts_reject_unknown_gsis_id(migrated_engine: Engine) -> None:
 
 
 def test_depth_charts_reject_unknown_team(migrated_engine: Engine) -> None:
-    gsis_id = "00-0092002"
+    gsis_id = "00-0094002"
     with migrated_engine.begin() as conn:
         _insert_team(conn, "DTH", "9303", "Depth Known Team")
         _insert_player(conn, gsis_id, "DTH")

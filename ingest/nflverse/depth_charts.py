@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import os
 from datetime import UTC, datetime
 
@@ -10,6 +9,7 @@ import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.seasons import seasons_from_env
 from ingest.nflverse.write import upsert_frame
 
 _DEPTH_CHART_COLUMNS = (
@@ -50,20 +50,6 @@ def _game_type_expr(frame: pl.DataFrame) -> pl.Expr:
     game_type = pl.col("game_type").cast(pl.String)
     missing = game_type.is_null() | (game_type == "")
     return pl.when(missing).then(pl.lit("REG")).otherwise(game_type).alias("game_type")
-
-
-def _resolved_seasons() -> tuple[int, ...]:
-    current_season = int(nfl.get_current_season())
-    try:
-        seasons_mod = importlib.import_module("ingest.nflverse.seasons")
-    except ImportError:
-        return (current_season,)
-    from_env = getattr(seasons_mod, "seasons_from_env", None)
-    if not callable(from_env):
-        return (current_season,)
-    return tuple(
-        int(season) for season in from_env(os.environ, current_season=current_season)
-    )
 
 
 def prepare_depth_charts(
@@ -112,7 +98,8 @@ def prepare_depth_charts(
 
 def main() -> None:
     ingested_at = datetime.now(UTC)
-    for season in _resolved_seasons():
+    seasons = seasons_from_env(os.environ, current_season=int(nfl.get_current_season()))
+    for season in seasons:
         charts = prepare_depth_charts(
             nfl.load_depth_charts(season),
             ingested_at=ingested_at,

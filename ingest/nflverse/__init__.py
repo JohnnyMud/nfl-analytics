@@ -1,1 +1,1 @@
-"""nflverse ingest: teams, players, games, weekly player stats, and injuries."""
+"""nflverse ingest: teams, players, games, weekly stats, injuries, depth charts."""
