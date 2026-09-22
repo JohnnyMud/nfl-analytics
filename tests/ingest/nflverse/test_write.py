@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 from common.settings import get_settings
 from ingest.nflverse.injuries import _INJURY_COLUMNS, prepare_injuries
 from ingest.nflverse.player_stats import _STAT_COLUMNS, prepare_player_stats
+from ingest.nflverse.players import _PLAYER_COLUMNS, prepare_players
 from ingest.nflverse.schedules import _GAME_COLUMNS, prepare_schedules
 from ingest.nflverse.write import (
     _split_table,
@@ -21,6 +22,12 @@ from ingest.nflverse.write import (
 from tests.infra.test_nfl_schema import _insert_game, _insert_player, _insert_team
 from tests.ingest.nflverse.test_injuries import _source_row as _injury_source
 from tests.ingest.nflverse.test_player_stats import _source_row as _stats_source
+from tests.ingest.nflverse.test_players import (
+    _directory,
+    _directory_row,
+    _roster_row,
+    _rosters,
+)
 from tests.ingest.nflverse.test_schedules import _source_row as _game_source
 
 FIRST_INGESTED = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
@@ -251,4 +258,77 @@ def test_upsert_injuries_deletes_season_orphans(migrated_engine: Engine) -> None
             )
         ).all()
     assert [(row.gsis_id, row.report_status) for row in rows] == [(kept, "Doubtful")]
+    assert rows[0].ingested_at == SECOND_INGESTED
+
+
+def test_upsert_players_updates_in_place_without_duplicate(
+    migrated_engine: Engine,
+) -> None:
+    gsis_id = "00-0095001"
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "UPL", "9501", "Upsert Players Latest")
+        _insert_team(conn, "UPR", "9502", "Upsert Players Roster")
+
+    url = get_settings().postgres_url
+    first = prepare_players(
+        _rosters(_roster_row(gsis_id=gsis_id, team="UPL", status="ACT")),
+        _directory(
+            _directory_row(
+                gsis_id=gsis_id,
+                nfl_id="95001",
+                pfr_id="UpsP9501",
+                pff_id="95001",
+                otc_id="95001",
+                espn_id="95001",
+                draft_team="UPR",
+            )
+        ),
+        ingested_at=FIRST_INGESTED,
+    )
+    upsert_frame(
+        first,
+        table="nfl.players",
+        columns=_PLAYER_COLUMNS,
+        conflict=("gsis_id",),
+        connection_url=url,
+        empty_message="no players to ingest",
+    )
+    second = prepare_players(
+        _rosters(_roster_row(gsis_id=gsis_id, team="UPR", status="DEV")),
+        _directory(
+            _directory_row(
+                gsis_id=gsis_id,
+                nfl_id="95001",
+                pfr_id="UpsP9501",
+                pff_id="95001",
+                otc_id="95001",
+                espn_id="95001",
+                draft_team="UPR",
+            )
+        ),
+        ingested_at=SECOND_INGESTED,
+    )
+    upsert_frame(
+        second,
+        table="nfl.players",
+        columns=_PLAYER_COLUMNS,
+        conflict=("gsis_id",),
+        connection_url=url,
+        empty_message="no players to ingest",
+    )
+
+    with migrated_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT latest_team, status, ingested_at
+                FROM nfl.players
+                WHERE gsis_id = :gsis_id
+                """
+            ),
+            {"gsis_id": gsis_id},
+        ).all()
+    assert len(rows) == 1
+    assert rows[0].latest_team == "UPR"
+    assert rows[0].status == "DEV"
     assert rows[0].ingested_at == SECOND_INGESTED

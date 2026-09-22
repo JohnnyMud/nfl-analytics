@@ -1,0 +1,31 @@
+name: nflverse players
+
+# After nflverse rosters at 07:00 UTC daily (Sep–Dec, Jan–Feb).
+# player_stats FKs to nfl.players; this job must stay ahead of that upsert.
+on:
+  schedule:
+    - cron: "30 7 * 1,2,9-12 *"
+  workflow_dispatch:
+
+concurrency:
+  group: nflverse-players
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Upsert players
+        run: python -m ingest.nflverse.players

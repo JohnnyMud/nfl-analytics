@@ -8,10 +8,56 @@ import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.write import upsert_frame
 
 # Released / retired rows stay on the seasonal roster file; they are not
 # currently on a club. Practice squad (DEV), reserve lists, and exempt stay.
 _INACTIVE_STATUSES = ("CUT", "RET")
+
+# Order matches nfl.players / prepare_players output. No raw column
+# (see migration 0005_drop_nfl_raw).
+_PLAYER_COLUMNS = (
+    "gsis_id",
+    "display_name",
+    "common_first_name",
+    "first_name",
+    "last_name",
+    "short_name",
+    "football_name",
+    "suffix",
+    "esb_id",
+    "nfl_id",
+    "pfr_id",
+    "pff_id",
+    "otc_id",
+    "espn_id",
+    "smart_id",
+    "birth_date",
+    "position_group",
+    "position",
+    "ngs_position_group",
+    "ngs_position",
+    "height",
+    "weight",
+    "headshot",
+    "college_name",
+    "college_conference",
+    "jersey_number",
+    "rookie_season",
+    "last_season",
+    "latest_team",
+    "status",
+    "ngs_status",
+    "ngs_status_short_description",
+    "years_of_experience",
+    "pff_position",
+    "pff_status",
+    "draft_year",
+    "draft_round",
+    "draft_pick",
+    "draft_team",
+    "ingested_at",
+)
 
 
 def prepare_players(
@@ -87,7 +133,7 @@ def prepare_players(
         pl.coalesce("draft_pick", "draft_number").alias("draft_pick"),
         pl.col("draft_team"),
         pl.lit(captured).alias("ingested_at"),
-    )
+    ).select(*_PLAYER_COLUMNS)
 
 
 def main() -> None:
@@ -98,11 +144,13 @@ def main() -> None:
         nfl.load_players(),
         ingested_at=ingested_at,
     )
-    players.write_database(
-        table_name="nfl.players",
-        connection=get_settings().postgres_url,
-        engine="adbc",
-        if_table_exists="append",
+    upsert_frame(
+        players,
+        table="nfl.players",
+        columns=_PLAYER_COLUMNS,
+        conflict=("gsis_id",),
+        connection_url=get_settings().postgres_url,
+        empty_message="no players to ingest",
     )
 
 

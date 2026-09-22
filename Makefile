@@ -7,7 +7,7 @@ PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else e
 # throwaway databases against Supabase.
 TEST_DATABASE_URL := postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
-.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-player-stats
+.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats
 
 setup:
 	python3 -m venv .venv
@@ -44,6 +44,9 @@ nflverse-games:
 
 nflverse-injuries:
 	$(PYTHON) -m ingest.nflverse.injuries
+
+nflverse-players:
+	$(PYTHON) -m ingest.nflverse.players
 
 nflverse-player-stats:
 	$(PYTHON) -m ingest.nflverse.player_stats
