@@ -49,12 +49,7 @@ def _game_type_expr(frame: pl.DataFrame) -> pl.Expr:
         return pl.lit("REG").alias("game_type")
     game_type = pl.col("game_type").cast(pl.String)
     missing = game_type.is_null() | (game_type == "")
-    return (
-        pl.when(missing)
-        .then(pl.lit("REG"))
-        .otherwise(game_type)
-        .alias("game_type")
-    )
+    return pl.when(missing).then(pl.lit("REG")).otherwise(game_type).alias("game_type")
 
 
 def _resolved_seasons() -> tuple[int, ...]:
@@ -67,8 +62,7 @@ def _resolved_seasons() -> tuple[int, ...]:
     if not callable(from_env):
         return (current_season,)
     return tuple(
-        int(season)
-        for season in from_env(os.environ, current_season=current_season)
+        int(season) for season in from_env(os.environ, current_season=current_season)
     )
 
 
