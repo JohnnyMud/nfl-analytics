@@ -1,13 +1,20 @@
-"""Load current-season nflverse injury reports into nfl.injuries."""
+"""Load nflverse injury reports into nfl.injuries.
+
+Nightly writes the current season. Set NFLVERSE_SEASON_START/END to backfill
+a range; each season is prepared and upserted separately.
+``delete_absent_for_season`` stays scoped to the season being written.
+"""
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.seasons import seasons_from_env
 from ingest.nflverse.write import upsert_frame
 
 _INJURY_COLUMNS = (
@@ -60,21 +67,23 @@ def prepare_injuries(
 
 def main() -> None:
     ingested_at = datetime.now(UTC)
-    season = nfl.get_current_season()
-    injuries = prepare_injuries(
-        nfl.load_injuries(season),
-        ingested_at=ingested_at,
-        season=season,
-    )
-    upsert_frame(
-        injuries,
-        table="nfl.injuries",
-        columns=_INJURY_COLUMNS,
-        conflict=("gsis_id", "season", "week", "game_type"),
-        connection_url=get_settings().postgres_url,
-        empty_message="no injuries to ingest",
-        delete_absent_for_season=season,
-    )
+    current_season = int(nfl.get_current_season())
+    connection_url = get_settings().postgres_url
+    for season in seasons_from_env(os.environ, current_season=current_season):
+        injuries = prepare_injuries(
+            nfl.load_injuries(season),
+            ingested_at=ingested_at,
+            season=season,
+        )
+        upsert_frame(
+            injuries,
+            table="nfl.injuries",
+            columns=_INJURY_COLUMNS,
+            conflict=("gsis_id", "season", "week", "game_type"),
+            connection_url=connection_url,
+            empty_message="no injuries to ingest",
+            delete_absent_for_season=season,
+        )
 
 
 if __name__ == "__main__":

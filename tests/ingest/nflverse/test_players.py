@@ -7,7 +7,11 @@ from datetime import UTC, date, datetime
 import polars as pl
 import pytest
 
-from ingest.nflverse.players import prepare_players
+from ingest.nflverse.players import (
+    prepare_players,
+    prepare_referenced_players,
+    referenced_gsis_ids,
+)
 
 INGESTED_AT = datetime(2026, 9, 11, 21, 0, tzinfo=UTC)
 
@@ -185,3 +189,65 @@ def test_prepare_players_rejects_naive_ingested_at() -> None:
             _directory(_directory_row()),
             ingested_at=datetime(2026, 9, 11, 21, 0),
         )
+
+
+def test_prepare_referenced_players_includes_stats_only_id() -> None:
+    out = prepare_referenced_players(
+        _directory(
+            _directory_row(),
+            _directory_row(
+                gsis_id="00-hist0001",
+                display_name="Historical Only",
+                latest_team="DAL",
+                status="RET",
+            ),
+            _directory_row(
+                gsis_id="00-other001",
+                display_name="Not Referenced",
+            ),
+        ),
+        ["00-hist0001", "00-missing"],
+        ingested_at=INGESTED_AT,
+    )
+
+    assert out["gsis_id"].to_list() == ["00-hist0001"]
+    assert out["display_name"][0] == "Historical Only"
+    assert out["latest_team"][0] == "DAL"
+    assert out["status"][0] == "RET"
+    assert out["birth_date"][0] == date(2002, 10, 5)
+    assert out["ingested_at"][0] == INGESTED_AT
+    assert "raw" not in out.columns
+
+
+def test_prepare_referenced_players_omits_ids_not_in_referenced() -> None:
+    out = prepare_referenced_players(
+        _directory(_directory_row(), _directory_row(gsis_id="00-other001")),
+        ["00-0038389"],
+        ingested_at=INGESTED_AT,
+    )
+    assert out["gsis_id"].to_list() == ["00-0038389"]
+
+
+def test_prepare_referenced_players_rejects_naive_ingested_at() -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        prepare_referenced_players(
+            _directory(_directory_row()),
+            ["00-0038389"],
+            ingested_at=datetime(2026, 9, 11, 21, 0),
+        )
+
+
+def test_referenced_gsis_ids_from_stats_and_injuries() -> None:
+    stats = pl.DataFrame(
+        {
+            "player_id": ["00-hist0001", None, "00-hist0001", ""],
+            "season": [2018, 2018, 2018, 2018],
+        }
+    )
+    injuries = pl.DataFrame(
+        {
+            "gsis_id": ["00-inj00001", "", "00-hist0001"],
+            "season": [2018, 2018, 2018],
+        }
+    )
+    assert referenced_gsis_ids(stats, injuries) == ("00-hist0001", "00-inj00001")
