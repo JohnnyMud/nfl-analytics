@@ -18,7 +18,7 @@ def resolve_seasons(
     *,
     current_season: int,
 ) -> tuple[int, ...]:
-    """Return an inclusive season range, or the current season when both ends are omitted."""
+    """Return an inclusive season range, or current season if both ends are omitted."""
     if start is None and end is None:
         return (int(current_season),)
     if start is None or end is None:
