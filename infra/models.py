@@ -1,5 +1,5 @@
 """SQLAlchemy mappings for nfl.teams, nfl.players, nfl.games, nfl.player_stats,
-and nfl.injuries.
+nfl.injuries, and nfl.depth_charts.
 
 Alembic DDL is the source of truth. These classes mirror that schema for
 typed reads/writes. Do not map market.odds_observation.
@@ -324,4 +324,21 @@ class Injury(Base):
     practice_primary_injury: Mapped[str | None]
     practice_secondary_injury: Mapped[str | None]
     practice_status: Mapped[str | None]
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DepthChart(Base):
+    __tablename__ = "depth_charts"
+    __table_args__ = {"schema": "nfl"}
+
+    season: Mapped[int] = mapped_column(primary_key=True)
+    week: Mapped[int] = mapped_column(primary_key=True)
+    game_type: Mapped[str] = mapped_column(primary_key=True)
+    team: Mapped[str] = mapped_column(ForeignKey("nfl.teams.team_abbr"))
+    gsis_id: Mapped[str] = mapped_column(
+        ForeignKey("nfl.players.gsis_id"), primary_key=True
+    )
+    position: Mapped[str] = mapped_column(primary_key=True)
+    depth_position: Mapped[str | None]
+    depth_team: Mapped[int | None]
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
