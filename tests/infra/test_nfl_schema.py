@@ -14,6 +14,7 @@ _DIMENSION_MIGRATION = Path("alembic/versions/0004_nfl_dimension_tables.py")
 _PLAYER_STATS_MIGRATION = Path("alembic/versions/0006_nfl_player_stats.py")
 _INJURIES_MIGRATION = Path("alembic/versions/0007_nfl_injuries.py")
 _DEPTH_CHARTS_MIGRATION = Path("alembic/versions/0008_nfl_depth_charts.py")
+_RUSH_PREDICTIONS_MIGRATION = Path("alembic/versions/0009_rush_rb_predictions.py")
 
 
 def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> None:
@@ -121,6 +122,16 @@ def test_migration_creates_empty_nfl_tables() -> None:
     assert "INSERT INTO" not in depth_charts_source.upper()
     assert "no intra-week timestamp" in depth_charts_source
     assert "pre-kickoff chart" in depth_charts_source
+
+    model_source = _RUSH_PREDICTIONS_MIGRATION.read_text()
+    assert 'revision: str = "0009_rush_rb_predictions"' in model_source
+    assert 'down_revision: str | None = "0008_nfl_depth_charts"' in model_source
+    assert "CREATE SCHEMA IF NOT EXISTS model" in model_source
+    assert "CREATE TABLE model.feature_row" in model_source
+    assert "CREATE TABLE model.prediction" in model_source
+    assert "CREATE TABLE model.metric" in model_source
+    assert "COALESCE(season, -1)" in model_source
+    assert "INSERT INTO" not in model_source.upper()
 
 
 def test_nfl_dimension_round_trip_and_fks(migrated_engine: Engine) -> None:
