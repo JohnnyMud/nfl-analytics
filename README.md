@@ -75,7 +75,8 @@ docs/          architecture, data sources, ADRs, research writeups
 - [`docs/architecture.md`](docs/architecture.md) — system design, stack decisions, staged roadmap
 - [`docs/adr/`](docs/adr/README.md) — architecture decision records
 - [`docs/specs/odds-snapshot-pipeline.md`](docs/specs/odds-snapshot-pipeline.md) — full pipeline design
-- [`docs/specs/week1-minimum-capture.md`](docs/specs/week1-minimum-capture.md) — **active task**
+- [`docs/specs/week1-minimum-capture.md`](docs/specs/week1-minimum-capture.md) — **active odds task**
+- [`docs/specs/rush-yards-phase1.md`](docs/specs/rush-yards-phase1.md) — **active modeling task** (RB rush yards)
 - [`AGENTS.md`](AGENTS.md) — invariants and conventions for coding agents
 - [`docs/agent-briefs/`](docs/agent-briefs/README.md) — paste-ready task briefs
 

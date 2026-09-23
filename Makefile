@@ -7,7 +7,7 @@ PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else e
 # throwaway databases against Supabase.
 TEST_DATABASE_URL := postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
-.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats nflverse-depth-charts nflverse-backfill
+.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats nflverse-depth-charts nflverse-backfill rush-walk-forward
 
 setup:
 	python3 -m venv .venv
@@ -62,3 +62,7 @@ nflverse-backfill:
 	NFLVERSE_SEASON_START=2012 NFLVERSE_SEASON_END=2025 $(PYTHON) -m ingest.nflverse.player_stats
 	NFLVERSE_SEASON_START=2012 NFLVERSE_SEASON_END=2025 $(PYTHON) -m ingest.nflverse.injuries
 	NFLVERSE_SEASON_START=2012 NFLVERSE_SEASON_END=2025 $(PYTHON) -m ingest.nflverse.depth_charts
+
+# In-memory trainer. Does not load nflverse or fit 2016-2025.
+rush-walk-forward:
+	$(PYTHON) -m models.rush_yards
