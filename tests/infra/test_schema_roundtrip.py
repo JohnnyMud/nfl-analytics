@@ -171,6 +171,38 @@ def test_market_and_nfl_schemas_exist(migrated_engine: Engine) -> None:
     assert names == {"market", "nfl"}
 
 
+def test_model_schema_and_tables_exist(migrated_engine: Engine) -> None:
+    with migrated_engine.connect() as conn:
+        schemas = set(
+            conn.execute(
+                text(
+                    """
+                    SELECT nspname
+                    FROM pg_namespace
+                    WHERE nspname = 'model'
+                    """
+                )
+            )
+            .scalars()
+            .all()
+        )
+        tables = set(
+            conn.execute(
+                text(
+                    """
+                    SELECT tablename
+                    FROM pg_tables
+                    WHERE schemaname = 'model'
+                    """
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert schemas == {"model"}
+    assert tables == {"feature_row", "prediction", "metric"}
+
+
 def test_odds_tables_live_in_market_schema(migrated_engine: Engine) -> None:
     in_tables = text(
         """
@@ -249,7 +281,7 @@ def test_no_timestamp_without_time_zone(migrated_engine: Engine) -> None:
                 """
                 SELECT table_schema, table_name, column_name
                 FROM information_schema.columns
-                WHERE table_schema IN ('public', 'market', 'nfl')
+                WHERE table_schema IN ('public', 'market', 'nfl', 'model')
                   AND data_type = 'timestamp without time zone'
                 """
             )

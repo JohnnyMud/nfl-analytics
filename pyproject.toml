@@ -17,6 +17,8 @@ dependencies = [
     "nflreadpy>=0.1.5",
     "adbc-driver-manager>=1.12.0",
     "adbc-driver-postgresql>=1.12.0",
+    "xgboost",
+    "lightgbm",
 ]
 
 [project.optional-dependencies]
