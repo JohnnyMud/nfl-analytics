@@ -88,6 +88,105 @@ def test_list_players_filters_to_requested_team(
     assert names == ["Tyler Lockett", "DK Metcalf"]
 
 
+def test_list_players_is_the_current_roster_not_career_history(
+    api_client: TestClient,
+    migrated_engine: Engine,
+) -> None:
+    """Backfilled seasons leave retired players with latest_team set."""
+    with Session(migrated_engine) as session:
+        insert_team(
+            session,
+            team_abbr="KC",
+            team_name="Kansas City Chiefs",
+            team_nick="Chiefs",
+            team_conf="AFC",
+            team_division="AFC West",
+        )
+        insert_player(
+            session,
+            gsis_id="00-0033873",
+            display_name="Patrick Mahomes",
+            last_name="Mahomes",
+            latest_team="KC",
+            last_season=2026,
+            status="ACT",
+        )
+        insert_player(
+            session,
+            gsis_id="00-0030615",
+            display_name="Reserve Back",
+            last_name="Back",
+            latest_team="KC",
+            last_season=2026,
+            status="RES",
+        )
+        insert_player(
+            session,
+            gsis_id="00-0000001",
+            display_name="Unknown Status",
+            last_name="Status",
+            latest_team="KC",
+            last_season=2026,
+            status=None,
+        )
+        insert_player(
+            session,
+            gsis_id="00-0000002",
+            display_name="Released Player",
+            last_name="Released",
+            latest_team="KC",
+            last_season=2026,
+            status="CUT",
+        )
+        insert_player(
+            session,
+            gsis_id="00-0023459",
+            display_name="Alex Smith",
+            last_name="Smith",
+            latest_team="KC",
+            last_season=2017,
+            status="RET",
+        )
+        insert_player(
+            session,
+            gsis_id="00-0000003",
+            display_name="Last Year Only",
+            last_name="Year",
+            latest_team="KC",
+            last_season=2025,
+            status="ACT",
+        )
+
+    response = api_client.get("/api/players", params={"team_abbr": "KC"})
+    assert response.status_code == 200
+    names = [row["display_name"] for row in response.json()]
+    assert names == ["Reserve Back", "Patrick Mahomes", "Unknown Status"]
+
+    explicit = api_client.get(
+        "/api/players", params={"team_abbr": "KC", "season": 2025}
+    )
+    assert [row["display_name"] for row in explicit.json()] == ["Last Year Only"]
+
+
+def test_list_players_with_no_roster_loaded_is_empty(
+    api_client: TestClient,
+    migrated_engine: Engine,
+) -> None:
+    with Session(migrated_engine) as session:
+        insert_team(
+            session,
+            team_abbr="KC",
+            team_name="Kansas City Chiefs",
+            team_nick="Chiefs",
+            team_conf="AFC",
+            team_division="AFC West",
+        )
+
+    response = api_client.get("/api/players", params={"team_abbr": "KC"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_get_player_unknown_is_404(api_client: TestClient) -> None:
     response = api_client.get("/api/players/00-0000000")
     assert response.status_code == 404

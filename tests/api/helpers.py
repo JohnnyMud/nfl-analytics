@@ -48,6 +48,8 @@ def insert_player(
     last_name: str | None = None,
     first_name: str | None = None,
     position: str | None = None,
+    last_season: int | None = 2026,
+    status: str | None = "ACT",
 ) -> Player:
     player = Player(
         gsis_id=gsis_id,
@@ -56,6 +58,8 @@ def insert_player(
         last_name=last_name,
         latest_team=latest_team,
         position=position,
+        last_season=last_season,
+        status=status,
         ingested_at=INGESTED_AT,
     )
     session.add(player)

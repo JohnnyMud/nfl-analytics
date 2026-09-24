@@ -63,10 +63,11 @@ export function TeamPage() {
       {!team && !error ? <p className="muted">Loading team…</p> : null}
       {team ? (
         <section className="panel">
-          <h2>Players</h2>
+          <h2>{rosterHeading(players)}</h2>
           <p className="muted">
-            Roster rows are current-as-of-ingest, not a point-in-time depth
-            chart. If this list is empty, players have not been loaded yet.
+            Current roster as of the last ingest, including reserve and
+            practice-squad players, not a point-in-time depth chart. If this
+            list is empty, no roster has been loaded yet.
           </p>
           <PlayerSelector
             players={players}
@@ -81,4 +82,9 @@ export function TeamPage() {
       ) : null}
     </main>
   );
+}
+
+function rosterHeading(players: Player[]): string {
+  const season = players[0]?.last_season;
+  return season ? `${season} roster` : "Roster";
 }

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from api.deps import DbSession
 from api.schemas import PlayerOut, PlayerSeasonSummaryOut
 from infra.models import Player, PlayerStat
 
 router = APIRouter()
+
+# Roster rows nflverse keeps on the seasonal file for players no longer on a
+# club. The current-season loader drops them; older backfilled rows may not.
+_OFF_ROSTER_STATUSES = ("CUT", "RET")
 
 # Box-score columns summed into a season row. Order here is the response
 # field order; keep it aligned with PlayerSeasonSummaryOut.
@@ -30,10 +34,32 @@ _SUMMED_COLUMNS = (
 
 
 @router.get("/players", response_model=list[PlayerOut])
-def list_players(team_abbr: str, db: DbSession) -> list[Player]:
+def list_players(
+    team_abbr: str, db: DbSession, season: int | None = None
+) -> list[Player]:
+    """Players on ``team_abbr``'s roster for ``season``.
+
+    ``nfl.players`` holds one row per person, with ``latest_team`` and
+    ``last_season`` current as of the last roster ingest. Filtering on
+    ``latest_team`` alone returns everyone whose career ended with this club,
+    so the roster season is required too. When ``season`` is omitted, the
+    newest ``last_season`` in the table is used: the latest roster loaded, not
+    the wall clock. A null ``status`` is kept; unknown is not off-roster.
+    """
+    if season is None:
+        season = db.scalar(select(func.max(Player.last_season)))
+        if season is None:
+            return []
     stmt = (
         select(Player)
-        .where(Player.latest_team == team_abbr)
+        .where(
+            Player.latest_team == team_abbr,
+            Player.last_season == season,
+            or_(
+                Player.status.is_(None),
+                Player.status.not_in(_OFF_ROSTER_STATUSES),
+            ),
+        )
         .order_by(Player.last_name, Player.first_name, Player.display_name)
     )
     return list(db.scalars(stmt).all())

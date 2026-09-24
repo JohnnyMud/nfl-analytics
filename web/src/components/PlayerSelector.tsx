@@ -38,5 +38,24 @@ export function PlayerSelector({
 function playerLabel(player: Player): string {
   const number = player.jersey_number ? `#${player.jersey_number} ` : "";
   const position = player.position ? ` · ${player.position}` : "";
-  return `${number}${player.display_name}${position}`;
+  const status = rosterStatus(player.status);
+  return `${number}${player.display_name}${position}${status ? ` · ${status}` : ""}`;
+}
+
+/** Roster designation for anyone not on the active 53. ACT is the default and unlabelled. */
+function rosterStatus(status: string | null): string | null {
+  switch (status) {
+    case null:
+      return "status unknown";
+    case "ACT":
+      return null;
+    case "RES":
+      return "IR / reserve";
+    case "DEV":
+      return "practice squad";
+    case "EXE":
+      return "exempt";
+    default:
+      return status;
+  }
 }
