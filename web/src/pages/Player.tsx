@@ -1,146 +1,143 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { ApiError } from "../api/client";
-import { getPlayer } from "../api/players";
-import type { Player } from "../types/player";
+import { getPlayer, listPlayerSeasons } from "../api/players";
+import { getTeam } from "../api/teams";
+import { PlayerHeader } from "../components/PlayerHeader";
+import { PlayerTabs } from "../components/PlayerTabs";
+import { SeasonSelector, type SeasonKey } from "../components/SeasonSelector";
+import { StatCards } from "../components/StatCards";
+import { isNotFound, useApi } from "../hooks/useApi";
+import { buildStatCards } from "../lib/statCards";
+import type { PlayerSeasonSummary } from "../types/player";
+
+const DEFAULT_SEASON_TYPE = "REG";
 
 export function PlayerPage() {
-  const { gsisId } = useParams();
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { gsisId = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    if (!gsisId) {
-      return;
-    }
-    let cancelled = false;
-    setPlayer(null);
-    setError(null);
-    getPlayer(gsisId)
-      .then((row) => {
-        if (!cancelled) {
-          setPlayer(row);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (caught instanceof ApiError && caught.status === 404) {
-          setError("That player is not in nfl.players.");
-          return;
-        }
-        setError("Could not load this player.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gsisId]);
+  const playerState = useApi(gsisId || null, () => getPlayer(gsisId));
+  const seasonsState = useApi(gsisId ? `${gsisId}/seasons` : null, () =>
+    listPlayerSeasons(gsisId),
+  );
+  const player = playerState.data;
+  const teamAbbr = player?.latest_team ?? null;
+  const teamState = useApi(teamAbbr, () => getTeam(teamAbbr ?? ""));
 
-  const teamHref = player?.latest_team
-    ? `/teams/${player.latest_team}`
-    : "/";
+  const seasons = seasonsState.data ?? [];
+  const selected = useMemo(
+    () => resolveSelectedSeason(seasons, searchParams.get("season"), searchParams.get("type")),
+    [seasons, searchParams],
+  );
+  const summary = selected
+    ? seasons.find(
+        (row) => row.season === selected.season && row.season_type === selected.seasonType,
+      ) ?? null
+    : null;
+
+  const errorMessage = playerState.error
+    ? isNotFound(playerState.error)
+      ? "That player is not in nfl.players."
+      : "Could not load this player."
+    : null;
 
   return (
     <main className="page">
       <p className="crumb">
         <Link to="/">Teams</Link>
-        {player?.latest_team ? (
+        {teamAbbr ? (
           <>
             <span> / </span>
-            <Link to={teamHref}>{player.latest_team}</Link>
+            <Link to={`/teams/${teamAbbr}`}>{teamAbbr}</Link>
           </>
         ) : null}
         <span> / Player</span>
       </p>
-      {error ? (
+
+      {errorMessage ? (
         <p className="banner banner-error" role="alert">
-          {error}
+          {errorMessage}
         </p>
       ) : null}
-      {!player && !error ? <p className="muted">Loading player…</p> : null}
+      {playerState.status === "loading" ? <p className="muted">Loading player…</p> : null}
+
       {player ? (
-        <article className="player-card">
-          {player.headshot ? (
-            <img
-              className="player-headshot"
-              src={player.headshot}
-              alt=""
-              width={160}
-              height={160}
-            />
-          ) : (
-            <div className="player-headshot player-headshot-fallback" aria-hidden="true">
-              {initials(player.display_name)}
+        <>
+          <PlayerHeader player={player} team={teamState.data} />
+          <PlayerTabs active="overview" onChange={() => undefined} />
+
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Season totals</h2>
+              <SeasonSelector
+                seasons={seasons}
+                value={selected}
+                onChange={(key) =>
+                  setSearchParams(
+                    { season: String(key.season), type: key.seasonType },
+                    { replace: true },
+                  )
+                }
+              />
             </div>
-          )}
-          <div>
-            <p className="eyebrow">
-              {[player.latest_team, player.position, jersey(player.jersey_number)]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            <h1>{player.display_name}</h1>
-            <dl className="facts">
-              <Fact label="College" value={player.college_name} />
-              <Fact label="Status" value={player.status} />
-              <Fact
-                label="Draft"
-                value={draftLine(player)}
-              />
-              <Fact
-                label="Seasons"
-                value={seasonLine(player.rookie_season, player.last_season)}
-              />
-            </dl>
-          </div>
-        </article>
+            {seasonsState.status === "loading" ? (
+              <p className="muted">Loading box scores…</p>
+            ) : null}
+            {seasonsState.status === "error" ? (
+              <p className="banner banner-error" role="alert">
+                Could not load season totals.
+              </p>
+            ) : null}
+            {seasonsState.status === "ready" && seasons.length === 0 ? (
+              <p className="muted">
+                No box scores are loaded for this player. Totals appear once
+                nfl.player_stats has rows for them.
+              </p>
+            ) : null}
+            {summary ? (
+              <>
+                <StatCards cards={buildStatCards(summary, player.position)} />
+                <p className="muted panel-footnote">
+                  Sums of {summary.games} final box{" "}
+                  {summary.games === 1 ? "score" : "scores"} in {summary.season}
+                  {summary.season_type === "REG" ? "" : ` ${summary.season_type}`}.
+                  A dash means nflverse did not report that stat, not zero.
+                </p>
+              </>
+            ) : null}
+          </section>
+        </>
       ) : null}
     </main>
   );
 }
 
-function Fact({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value ?? "Unknown"}</dd>
-    </div>
-  );
-}
-
-function jersey(number: string | null): string | null {
-  return number ? `#${number}` : null;
-}
-
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
-function draftLine(player: Player): string | null {
-  if (player.draft_year == null && player.draft_round == null) {
+/**
+ * Pick the season to show. A URL choice wins when it exists in the data;
+ * otherwise the newest season, preferring REG over a same-year POST row.
+ */
+function resolveSelectedSeason(
+  seasons: PlayerSeasonSummary[],
+  rawSeason: string | null,
+  rawType: string | null,
+): SeasonKey | null {
+  if (seasons.length === 0) {
     return null;
   }
-  const round = player.draft_round != null ? `Rd ${player.draft_round}` : null;
-  const pick = player.draft_pick != null ? `Pick ${player.draft_pick}` : null;
-  return [player.draft_year, round, pick, player.draft_team]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function seasonLine(
-  rookieSeason: number | null,
-  lastSeason: number | null,
-): string | null {
-  if (rookieSeason == null && lastSeason == null) {
-    return null;
+  const wantedSeason = rawSeason === null ? null : Number(rawSeason);
+  const wantedType = rawType ?? DEFAULT_SEASON_TYPE;
+  if (wantedSeason !== null) {
+    const match = seasons.find(
+      (row) => row.season === wantedSeason && row.season_type === wantedType,
+    );
+    if (match) {
+      return { season: match.season, seasonType: match.season_type };
+    }
   }
-  return `${rookieSeason ?? "?"}–${lastSeason ?? "?"}`;
+  const newest = seasons[0].season;
+  const preferred =
+    seasons.find((row) => row.season === newest && row.season_type === DEFAULT_SEASON_TYPE) ??
+    seasons[0];
+  return { season: preferred.season, seasonType: preferred.season_type };
 }

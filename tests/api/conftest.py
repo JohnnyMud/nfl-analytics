@@ -30,4 +30,6 @@ def api_client(migrated_engine: Engine) -> Iterator[TestClient]:
         yield client
     app.dependency_overrides.clear()
     with migrated_engine.begin() as conn:
-        conn.execute(text("TRUNCATE nfl.games, nfl.players, nfl.teams CASCADE"))
+        conn.execute(
+            text("TRUNCATE nfl.player_stats, nfl.games, nfl.players, nfl.teams CASCADE")
+        )

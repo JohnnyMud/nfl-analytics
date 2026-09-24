@@ -54,7 +54,7 @@ export function teamLogo(team: Team): string | null {
   return team.team_logo_espn ?? team.team_logo_squared ?? team.team_logo_wikipedia;
 }
 
-function withAlpha(hex: string, alpha: number): string {
+export function withAlpha(hex: string, alpha: number): string {
   const normalized = hex.replace("#", "");
   if (normalized.length !== 6) {
     return hex;

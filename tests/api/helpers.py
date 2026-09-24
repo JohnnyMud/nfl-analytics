@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
-from infra.models import Player, Team
+from infra.models import Game, Player, PlayerStat, Team
 
 INGESTED_AT = datetime(2026, 9, 11, 21, 0, tzinfo=UTC)
 
@@ -62,3 +62,59 @@ def insert_player(
     session.commit()
     session.refresh(player)
     return player
+
+
+def insert_game(
+    session: Session,
+    *,
+    game_id: str,
+    season: int,
+    week: int,
+    home_team: str,
+    away_team: str,
+    game_type: str = "REG",
+    kickoff_at: datetime | None = None,
+) -> Game:
+    game = Game(
+        game_id=game_id,
+        season=season,
+        game_type=game_type,
+        week=week,
+        game_date=date(season, 9, 1),
+        kickoff_at=kickoff_at,
+        home_team=home_team,
+        away_team=away_team,
+        ingested_at=INGESTED_AT,
+    )
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+    return game
+
+
+def insert_player_stat(
+    session: Session,
+    *,
+    gsis_id: str,
+    game: Game,
+    team: str,
+    opponent_team: str,
+    season_type: str = "REG",
+    **box_score: int | None,
+) -> PlayerStat:
+    """One box-score row. Unspecified stat columns stay null, not 0."""
+    row = PlayerStat(
+        gsis_id=gsis_id,
+        season=game.season,
+        week=game.week,
+        season_type=season_type,
+        game_id=game.game_id,
+        team=team,
+        opponent_team=opponent_team,
+        ingested_at=INGESTED_AT,
+        **box_score,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
