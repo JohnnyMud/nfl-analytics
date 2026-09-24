@@ -1,5 +1,4 @@
-"""SQLAlchemy mappings for nfl.teams, nfl.players, nfl.games, nfl.player_stats,
-and nfl.injuries.
+"""SQLAlchemy mappings for nfl.* facts and model.* stored artifacts.
 
 Alembic DDL is the source of truth. These classes mirror that schema for
 typed reads/writes. Do not map market.odds_observation.
@@ -9,8 +8,11 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -325,3 +327,63 @@ class Injury(Base):
     practice_secondary_injury: Mapped[str | None]
     practice_status: Mapped[str | None]
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DepthChart(Base):
+    __tablename__ = "depth_charts"
+    __table_args__ = {"schema": "nfl"}
+
+    season: Mapped[int] = mapped_column(primary_key=True)
+    week: Mapped[int] = mapped_column(primary_key=True)
+    game_type: Mapped[str] = mapped_column(primary_key=True)
+    team: Mapped[str] = mapped_column(ForeignKey("nfl.teams.team_abbr"))
+    gsis_id: Mapped[str] = mapped_column(
+        ForeignKey("nfl.players.gsis_id"), primary_key=True
+    )
+    position: Mapped[str] = mapped_column(primary_key=True)
+    depth_position: Mapped[str | None]
+    depth_team: Mapped[int | None]
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class FeatureRow(Base):
+    __tablename__ = "feature_row"
+    __table_args__ = {"schema": "model"}
+
+    feature_set_version: Mapped[str] = mapped_column(primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(primary_key=True)
+    game_id: Mapped[str] = mapped_column(primary_key=True)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    built_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Prediction(Base):
+    __tablename__ = "prediction"
+    __table_args__ = {"schema": "model"}
+
+    run_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    model_name: Mapped[str] = mapped_column(primary_key=True)
+    model_version: Mapped[str]
+    feature_set_version: Mapped[str]
+    gsis_id: Mapped[str] = mapped_column(primary_key=True)
+    game_id: Mapped[str] = mapped_column(primary_key=True)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    y_hat: Mapped[float | None]
+    y_true: Mapped[float]
+    predicted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Metric(Base):
+    """Uniqueness is the COALESCE(season, -1) index, not a nullable PK."""
+
+    __tablename__ = "metric"
+    __table_args__ = {"schema": "model"}
+
+    run_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    model_name: Mapped[str] = mapped_column(primary_key=True)
+    season: Mapped[int | None] = mapped_column(primary_key=True)
+    mae: Mapped[float]
+    rmse: Mapped[float]
+    n: Mapped[int]
+    n_unknown: Mapped[int]

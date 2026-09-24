@@ -18,6 +18,7 @@ not useful here.
 Design phase. First component under construction: the **odds snapshot pipeline**.
 
 - Active task spec: `docs/specs/week1-minimum-capture.md` (deadline-scoped)
+- Active modeling spec: `docs/specs/rush-yards-phase1.md` (RB rush yards, walk-forward)
 - Full design: `docs/specs/odds-snapshot-pipeline.md`
 - Decisions: `docs/adr/`
 
