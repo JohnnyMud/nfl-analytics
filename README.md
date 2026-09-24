@@ -77,6 +77,7 @@ docs/          architecture, data sources, ADRs, research writeups
 - [`docs/specs/odds-snapshot-pipeline.md`](docs/specs/odds-snapshot-pipeline.md) — full pipeline design
 - [`docs/specs/week1-minimum-capture.md`](docs/specs/week1-minimum-capture.md) — **active odds task**
 - [`docs/specs/rush-yards-phase1.md`](docs/specs/rush-yards-phase1.md) — **active modeling task** (RB rush yards)
+- [`backtest/rush_yards_walkthrough.ipynb`](backtest/rush_yards_walkthrough.ipynb) — fit + predict walkthrough (in-memory slate)
 - [`AGENTS.md`](AGENTS.md) — invariants and conventions for coding agents
 - [`docs/agent-briefs/`](docs/agent-briefs/README.md) — paste-ready task briefs
 

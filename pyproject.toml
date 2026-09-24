@@ -27,6 +27,10 @@ dev = [
     "mypy",
     "pytest",
 ]
+notebook = [
+    "jupyter",
+    "ipykernel",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
