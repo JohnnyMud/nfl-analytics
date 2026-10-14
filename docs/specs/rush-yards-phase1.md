@@ -1,6 +1,7 @@
 # Spec: Rush yards phase 1
 
-Status: Active — first modeling task
+Status: Implemented — results in §11. §11 also records where the build
+departed from this contract and why.
 Related: `docs/architecture.md` (feature marts, LightGBM / XGBoost),
 `.cursor/rules/20-modeling.mdc`, `AGENTS.md`
 
@@ -138,7 +139,7 @@ game's box score.
 | `wind` | int | `games.wind` | **game actual, not a forecast** | same as `temp` |
 | `report_status` | str | `nfl.injuries` for `(gsis_id, season, week, game_type)` | week report treated as pre-kickoff | no injury row, or `report_status` is null |
 | `practice_status` | str | same | same | no injury row, or `practice_status` is null |
-| `depth_team` | int | `nfl.depth_charts` RB row for `(gsis_id, season, week, game_type)` | week chart treated as pre-kickoff | no chart row, or `depth_team` is null |
+| `depth_team` | int | `nfl.depth_charts` best `depth_rank` in an RB/HB slot, latest snapshot for the player's club (see §11.2) | `as_of − 10 days < snapshot_at <= as_of` | no snapshot in that window for that club |
 
 `player_std_*` on week 1 is `Unknown`. Callers who want a week-1 usage signal
 read `player_prior_season_rush_yards_pg`. Last-4 windows use however many
@@ -338,6 +339,9 @@ Schema `model` (create if missing):
 A prediction without model version, feature-set version, `as_of`, and
 `run_id` is not stored.
 
+Migration `0011_prediction_y_true_nullable` relaxes `y_true` to null so
+predict-upcoming can store rows before the game is played (§11.4).
+
 ## 10. Worktree split
 
 Parent writes this spec, then merges. Implementations:
@@ -351,3 +355,101 @@ Parent writes this spec, then merges. Implementations:
 
 Parent owns Makefile targets, schema apply, and the final `make test` /
 `make lint` run.
+
+## 11. Results
+
+### 11.1 Departures from this contract
+
+- **Seasons.** The warehouse starts at 2016, not 2012. 2016 is the training
+  warm-up; scored seasons are **2017–2025**. 2026 is not backtested.
+- **Depth charts.** §7's week-grain table was replaced before data landed by
+  migration `0010_depth_chart_snapshots`: `nfl.depth_charts` is keyed
+  `(gsis_id, team, snapshot_at, position)` with an integer `depth_rank`. From
+  2025 `snapshot_at` is the nflverse publication time; before 2025 it is the
+  club's derived kickoff, not a publication time. There is no depth-chart
+  ingest job; the table was loaded once.
+- **Relocated clubs.** Box scores carry current club codes (`LV`, `LAC`)
+  while the schedule keeps `OAK` / `SD`. The assembler compares clubs by
+  `nfl.teams.franchise_id`, so `is_home`, `rest_days`, and opponent history
+  resolve for those seasons.
+- **Assembler.** `features/rush_yards_source.py` is the one module in
+  `features/` that reads the database (SELECT only). It bulk-loads rows with
+  `kickoff_at < kickoff_before` and filters each target to `kickoff_at < as_of`
+  again before `build_rush_rb_v1` runs.
+
+### 11.2 Feature subsets
+
+The registry stays frozen at `rush_rb_v1`. A model configuration picks a
+subset, and the subset is appended to the model version:
+
+- `pregame_safe` drops `temp`, `wind`, `report_status`, `practice_status`,
+  and `depth_team`, which are not verifiably known before kickoff (weather is
+  a game-day actual; injury reports have no publish time; pre-2025 depth
+  snapshots are stamped at kickoff). **Headline.**
+- `full` keeps all 21 features. **Upper bound only.**
+
+`depth_team` reads the latest snapshot for the player's club with
+`as_of − 10 days < snapshot_at <= as_of`, and takes the best rank across the
+`RB` and `HB` slots. A stale or other-club snapshot is `Unknown`.
+
+### 11.3 Walk-forward backtest, 2017–2025
+
+Train from 2016, refit every regular-season week, defaults from §8 (400
+trees, previous-season early stopping). Stored labels; read back with
+`python -m backtest.rush_yards_report <run_id> ...`.
+
+| run_id | subset | written |
+| --- | --- | --- |
+| `ea8cb8e8-8c48-4340-b5c3-243682a17ca5` | `pregame_safe` | 2026-10-14 |
+| `659ca576-641a-4322-b6d4-c24f32ed9eca` | `full` | 2026-10-14 |
+
+Each run scored 14,516 player-games in 158 weekly folds. Both runs share the
+same `model.feature_row` vectors.
+
+Overall, each model on its own rows (baselines exclude their `Unknown` rows):
+
+| model_version | MAE | RMSE | n | unknown |
+| --- | --- | --- | --- | --- |
+| `lgbm_rush_rb_v1+pregame_safe` | 19.04 | 27.63 | 14,516 | 0 |
+| `xgb_rush_rb_v1+pregame_safe` | 19.13 | 27.77 | 14,516 | 0 |
+| `baseline_std_v1` | 19.13 | 28.66 | 14,134 | 382 |
+| `baseline_last4_v1` | 19.40 | 28.83 | 14,186 | 330 |
+| `lgbm_rush_rb_v1+full` | 18.82 | 27.37 | 14,516 | 0 |
+| `xgb_rush_rb_v1+full` | 18.90 | 27.47 | 14,516 | 0 |
+
+On the 14,134 player-games every model scored (the fair comparison):
+
+| model_version | MAE | RMSE |
+| --- | --- | --- |
+| `lgbm_rush_rb_v1+full` | 18.95 | 27.54 |
+| `xgb_rush_rb_v1+full` | 19.02 | 27.64 |
+| `lgbm_rush_rb_v1+pregame_safe` | 19.11 | 27.74 |
+| `baseline_std_v1` | 19.13 | 28.66 |
+| `xgb_rush_rb_v1+pregame_safe` | 19.21 | 27.88 |
+| `baseline_last4_v1` | 19.42 | 28.86 |
+
+Reading:
+
+- The pregame-safe boosters beat both baselines on RMSE by 0.8–0.9 yards on
+  common rows. On MAE the margin over `baseline_std` is small: LightGBM wins
+  by 0.02 and XGBoost loses by 0.08. Per §9.1, XGBoost `+pregame_safe` does
+  **not** beat `baseline_std` on MAE.
+- By season (each model on its own rows), the pregame-safe boosters lose to
+  the better baseline on MAE in 2017–2019, win by 0.3–0.6 yards in 2020 and
+  2022–2024, and are within 0.02 yards in 2021 and 2025.
+- `+full` improves MAE by about 0.2 yards. That gap is the most the
+  unverifiable fields could be worth, and part of it may be leakage
+  (game-day weather, kickoff-stamped depth charts).
+
+### 11.4 Upcoming games
+
+`python -m models.rush_yards predict-upcoming --season S --week W` trains on
+every population game that kicked off before the week's first kickoff and
+predicts each club's RBs from its latest game this season before that cutoff.
+Rows are stored with `y_true` null; the report scores them live against
+`nfl.player_stats` once box scores land, and counts the rest as unlabeled,
+never as zero.
+
+| run_id | target | predictions |
+| --- | --- | --- |
+| `7858532a-0a46-44ab-b8a8-59db05fcc10f` | 2026 week 6, `pregame_safe` | 84 RBs × 4 models |

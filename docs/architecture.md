@@ -46,6 +46,25 @@ trivial and makes every displayed number reproducible from a stored artifact.
 | Infra | **Docker Compose** locally, one cloud host + managed Postgres | Deploy simply; complexity spent on data correctness instead. |
 | CI | **GitHub Actions** | ruff + mypy (strict on `features/` and `models/`) + pytest, plus a nightly data-contract run. |
 
+### What was actually built (drift from the table above)
+
+The table is the original plan. As of the 2026 season:
+
+- **Adopted:** Postgres (hosted on Supabase), FastAPI + Pydantic v2 + SQLAlchemy 2.0 +
+  Alembic, React + TypeScript + Vite, native XGBoost and LightGBM, GitHub Actions for CI
+  and the nightly nflverse jobs.
+- **Not adopted:** DuckDB, dbt, Prefect/Dagster (jobs are GitHub Actions cron calling
+  `python -m ingest.*`), Redis, MLflow (provenance is `run_id`, `model_version`, and
+  `feature_set_version` on `model.prediction`), TanStack Query/Table, statsmodels,
+  Docker Compose as the warehouse (the compose Postgres is a local development and test
+  database; the data lives in Supabase).
+- **Vendor:** odds come from The Odds API (`ingest/odds/the_odds_api.py`), not OpticOdds.
+- **Order:** the first player target is RB rushing yards, not receiving yards.
+- **Point-in-time caveat:** nflverse tables are upserted, not appended, so they are not
+  point-in-time history. Injury reports have no publish time, and depth charts before
+  2025 carry a derived instant. Models that use them are labelled `+full` and treated
+  as an upper bound; headline numbers use `+pregame_safe`.
+
 Rust or another systems language is **not** currently justified. Revisit only if
 play-level tracking data or a heavy simulation loop (e.g. tens of thousands of game
 simulations per slate) becomes a real bottleneck.

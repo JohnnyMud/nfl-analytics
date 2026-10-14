@@ -15,12 +15,18 @@ not useful here.
 
 ## Current state
 
-Design phase. First component under construction: the **odds snapshot pipeline**.
+Two components exist: the **odds snapshot pipeline** and an end-to-end **RB rushing-yards
+model**. The warehouse is Supabase Postgres (`nfl.*` 2016–2026, `market.*`, `model.*`).
 
-- Active task spec: `docs/specs/week1-minimum-capture.md` (deadline-scoped)
-- Active modeling spec: `docs/specs/rush-yards-phase1.md` (RB rush yards, walk-forward)
-- Full design: `docs/specs/odds-snapshot-pipeline.md`
-- Decisions: `docs/adr/`
+- Rush yards: `features/rush_yards_source.py` (the only DB-reading module in `features/`)
+ → `python -m models.rush_yards backtest|predict-upcoming` → `model.*` rows →
+ `python -m backtest.rush_yards_report` and `GET /api/players/{gsis_id}/predictions`.
+ Spec and stored results: `docs/specs/rush-yards-phase1.md`.
+- Odds task spec: `docs/specs/week1-minimum-capture.md`; full design:
+ `docs/specs/odds-snapshot-pipeline.md`
+- Decisions: `docs/adr/`. Stack drift from the original plan: `docs/architecture.md`.
+- Invariants 3 and 6 below bind `market.*`. The `nfl.*` nflverse tables are upserted
+ copies without raw payloads; `model.feature_row` stores the exact vector each run used.
 
 ## Non-negotiable invariants
 

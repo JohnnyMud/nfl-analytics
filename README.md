@@ -77,15 +77,27 @@ docs/          architecture, data sources, ADRs, research writeups
 - [`docs/specs/odds-snapshot-pipeline.md`](docs/specs/odds-snapshot-pipeline.md) — full pipeline design
 - [`docs/specs/week1-minimum-capture.md`](docs/specs/week1-minimum-capture.md) — **active odds task**
 - [`docs/specs/rush-yards-phase1.md`](docs/specs/rush-yards-phase1.md) — **active modeling task** (RB rush yards)
-- [`backtest/rush_yards_walkthrough.ipynb`](backtest/rush_yards_walkthrough.ipynb) — fit + predict walkthrough (in-memory slate)
+- [`backtest/rush_yards_walkthrough.ipynb`](backtest/rush_yards_walkthrough.ipynb) — fit + predict walkthrough (in-memory slate), then a viewer over stored runs
 - [`AGENTS.md`](AGENTS.md) — invariants and conventions for coding agents
 - [`docs/agent-briefs/`](docs/agent-briefs/README.md) — paste-ready task briefs
 
 ## Current status
 
-Implementation starting. The active task is
-[Week 1 minimum viable capture](docs/specs/week1-minimum-capture.md) — a deliberately
-descoped version of the odds pipeline that must be running before the 2026 Week 1 opener
-(NE @ SEA, Sept 9). Odds history is the only data in this project that cannot be backfilled
-after the fact, which is why it is first
-(see [ADR-0001](docs/adr/0001-capture-odds-before-everything-else.md)).
+- **Odds capture.** [Week 1 minimum viable capture](docs/specs/week1-minimum-capture.md)
+  came first because odds history is the only data here that cannot be backfilled
+  (see [ADR-0001](docs/adr/0001-capture-odds-before-everything-else.md)).
+- **Stats warehouse.** nflverse teams, players, schedules, box scores, injuries, and
+  depth-chart snapshots for 2016–2026 in Supabase Postgres, refreshed by GitHub Actions.
+- **First model: RB rushing yards.** A walk-forward backtest over 2017–2025 (weekly
+  refits, train from 2016) stores every prediction and MAE/RMSE row in `model.*`. The
+  headline `pregame_safe` models beat both mandatory baselines on RMSE by about 0.9
+  yards; on MAE only LightGBM edges the season-to-date baseline, by 0.02 yards.
+  Results and run ids are in [the spec](docs/specs/rush-yards-phase1.md#11-results).
+  Upcoming-week predictions are stored unlabeled and shown on the player page's
+  Predictions tab.
+
+```bash
+make rush-walk-forward                    # backtest both feature subsets, write model.*
+make rush-predict-upcoming SEASON=2026 WEEK=7
+make rush-report RUN_IDS="<run_id> ..."   # read stored rows; no args lists runs
+```
