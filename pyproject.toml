@@ -30,6 +30,7 @@ dev = [
 notebook = [
     "jupyter",
     "ipykernel",
+    "matplotlib",
 ]
 
 [build-system]

@@ -78,6 +78,7 @@ docs/          architecture, data sources, ADRs, research writeups
 - [`docs/specs/week1-minimum-capture.md`](docs/specs/week1-minimum-capture.md) — **active odds task**
 - [`docs/specs/rush-yards-phase1.md`](docs/specs/rush-yards-phase1.md) — **active modeling task** (RB rush yards)
 - [`backtest/rush_yards_walkthrough.ipynb`](backtest/rush_yards_walkthrough.ipynb) — fit + predict walkthrough (in-memory slate), then a viewer over stored runs
+- [`backtest/rush_yards_lab.ipynb`](backtest/rush_yards_lab.ipynb) — feature lab: performance, feature importance, ablations, add/drop experiments (read-only)
 - [`AGENTS.md`](AGENTS.md) — invariants and conventions for coding agents
 - [`docs/agent-briefs/`](docs/agent-briefs/README.md) — paste-ready task briefs
 

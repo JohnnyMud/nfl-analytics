@@ -142,8 +142,13 @@ def fit_lightgbm(
     eval_set: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None,
     early_stopping_rounds: int = DEFAULT_EARLY_STOPPING_ROUNDS,
     categorical_indices: Sequence[int] | None = None,
+    seed: int | None = None,
 ) -> FittedBooster:
-    """Fit the spec LightGBM regressor. Early stop only when eval is non-empty."""
+    """Fit the spec LightGBM regressor. Early stop only when eval is non-empty.
+
+    ``seed`` overrides the spec seed for research runs that average several
+    fits; stored runs use the spec default.
+    """
     spec = make_lightgbm(n_estimators=n_estimators)
     params: dict[str, int | float | str] = {
         "objective": "regression",
@@ -151,7 +156,7 @@ def fit_lightgbm(
         "learning_rate": spec.learning_rate,
         "subsample": spec.subsample,
         "colsample_bytree": spec.colsample_bytree,
-        "seed": spec.random_state,
+        "seed": spec.random_state if seed is None else seed,
         "n_jobs": spec.n_jobs,
         "verbose": -1,
         "metric": "rmse",
