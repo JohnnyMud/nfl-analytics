@@ -1,13 +1,19 @@
-"""Load the current-season nflverse schedule into nfl.games."""
+"""Load nflverse schedules into nfl.games.
+
+Nightly writes the current season. Set NFLVERSE_SEASON_START/END to backfill
+a range; each season is prepared and upserted separately.
+"""
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import nflreadpy as nfl  # type: ignore[import-untyped]
 import polars as pl
 
 from common.settings import get_settings
+from ingest.nflverse.seasons import seasons_from_env
 from ingest.nflverse.write import upsert_frame
 
 # nflverse ``gametime`` is the published Eastern clock, not the host TZ.
@@ -113,20 +119,22 @@ def _kickoff_at() -> pl.Expr:
 
 def main() -> None:
     ingested_at = datetime.now(UTC)
-    season = nfl.get_current_season()
-    games = prepare_schedules(
-        nfl.load_schedules(season),
-        ingested_at=ingested_at,
-        season=season,
-    )
-    upsert_frame(
-        games,
-        table="nfl.games",
-        columns=_GAME_COLUMNS,
-        conflict=("game_id",),
-        connection_url=get_settings().postgres_url,
-        empty_message="no games to ingest",
-    )
+    current_season = int(nfl.get_current_season())
+    connection_url = get_settings().postgres_url
+    for season in seasons_from_env(os.environ, current_season=current_season):
+        games = prepare_schedules(
+            nfl.load_schedules(season),
+            ingested_at=ingested_at,
+            season=season,
+        )
+        upsert_frame(
+            games,
+            table="nfl.games",
+            columns=_GAME_COLUMNS,
+            conflict=("game_id",),
+            connection_url=connection_url,
+            empty_message="no games to ingest",
+        )
 
 
 if __name__ == "__main__":
