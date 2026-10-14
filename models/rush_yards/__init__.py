@@ -22,14 +22,20 @@ from models.rush_yards.matrix import (
 from models.rush_yards.metrics import MetricStats, compute_metrics
 from models.rush_yards.payload import features_to_payload, payload_to_features
 from models.rush_yards.types import (
+    FeatureSubset,
     LabeledRushRow,
     MetricRecord,
     ModelName,
+    PendingRushRow,
     PredictionRecord,
     WalkForwardFold,
     WalkForwardResult,
 )
-from models.rush_yards.walk_forward import iter_week_folds, walk_forward
+from models.rush_yards.walk_forward import (
+    iter_week_folds,
+    predict_pending,
+    walk_forward,
+)
 
 __all__ = [
     "CATEGORICAL_FEATURES",
@@ -40,10 +46,12 @@ __all__ = [
     "XGB_MODEL_VERSION",
     "CategoryEncoder",
     "FeatureMatrix",
+    "FeatureSubset",
     "LabeledRushRow",
     "MetricRecord",
     "MetricStats",
     "ModelName",
+    "PendingRushRow",
     "PredictionRecord",
     "WalkForwardFold",
     "WalkForwardResult",
@@ -59,5 +67,6 @@ __all__ = [
     "make_lightgbm",
     "make_xgboost",
     "payload_to_features",
+    "predict_pending",
     "walk_forward",
 ]

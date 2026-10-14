@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 
 from features.rush_yards import RushRbV1
 from features.types import Known, Unknown
+from models.rush_yards.types import FeatureSubset
 
 FEATURE_NAMES: tuple[str, ...] = tuple(
     name
@@ -23,6 +24,20 @@ CATEGORICAL_FEATURES: tuple[str, ...] = (
     "report_status",
     "practice_status",
 )
+
+# Not verifiably known before kickoff: temp/wind are game-day actuals; injury
+# reports are week files with no publish time; pre-2025 depth snapshots carry
+# a derived instant (the club kickoff), not a publication time.
+NOT_PREGAME_VERIFIED: frozenset[str] = frozenset(
+    {"temp", "wind", "report_status", "practice_status", "depth_team"}
+)
+
+FEATURE_SUBSETS: dict[FeatureSubset, tuple[str, ...]] = {
+    "full": FEATURE_NAMES,
+    "pregame_safe": tuple(
+        name for name in FEATURE_NAMES if name not in NOT_PREGAME_VERIFIED
+    ),
+}
 
 # Unused integer code reserved for missing / unseen levels. The matrix still
 # writes NaN so boosters take their native missing path; this code is never
@@ -77,25 +92,32 @@ def build_matrix(
     *,
     y: Sequence[float] | None = None,
     encoder: CategoryEncoder | None = None,
+    feature_names: Sequence[str] = FEATURE_NAMES,
 ) -> FeatureMatrix:
     """Stack feature rows. ``encoder`` must come from the training window.
 
     Unknown and a test-week category not seen in training become NaN, never 0
-    and never a new dummy column.
+    and never a new dummy column. ``feature_names`` selects registry columns;
+    a name outside the registry is an error, not a silent extra column.
     """
+    unregistered = [name for name in feature_names if name not in FEATURE_NAMES]
+    if unregistered:
+        raise ValueError(f"unregistered features: {unregistered}")
     if encoder is None:
         encoder = fit_category_encoder(rows)
     if y is not None and len(y) != len(rows):
         raise ValueError("y length must match the number of feature rows")
 
+    names = tuple(feature_names)
     n = len(rows)
-    p = len(FEATURE_NAMES)
+    p = len(names)
     X = np.full((n, p), np.nan, dtype=np.float64)
-    cat_index = {name: i for i, name in enumerate(FEATURE_NAMES)}
-    categorical_indices = tuple(cat_index[name] for name in CATEGORICAL_FEATURES)
+    categorical_indices = tuple(
+        i for i, name in enumerate(names) if name in CATEGORICAL_FEATURES
+    )
 
     for i, row in enumerate(rows):
-        for j, name in enumerate(FEATURE_NAMES):
+        for j, name in enumerate(names):
             X[i, j] = _cell(getattr(row, name), name, encoder)
 
     y_arr: NDArray[np.float64] | None = None
@@ -105,7 +127,7 @@ def build_matrix(
     return FeatureMatrix(
         X=X,
         y=y_arr,
-        feature_names=FEATURE_NAMES,
+        feature_names=names,
         categorical_indices=categorical_indices,
         encoder=encoder,
     )

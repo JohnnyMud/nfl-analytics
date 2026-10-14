@@ -10,6 +10,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict
 from features.rush_yards import RushRbV1
 
 ModelName = Literal["xgboost", "lightgbm", "baseline_std", "baseline_last4"]
+FeatureSubset = Literal["full", "pregame_safe"]
 
 
 class LabeledRushRow(BaseModel):
@@ -26,8 +27,28 @@ class LabeledRushRow(BaseModel):
     features: RushRbV1
 
 
+class PendingRushRow(BaseModel):
+    """A game not yet played. Same keys as ``LabeledRushRow``, no label."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    gsis_id: str
+    game_id: str
+    season: int
+    week: int
+    kickoff_at: AwareDatetime
+    features: RushRbV1
+
+    @property
+    def y_true(self) -> None:
+        return None
+
+
 class PredictionRecord(BaseModel):
-    """One stored prediction. ``season`` / ``week`` are in-memory only."""
+    """One stored prediction. ``season`` / ``week`` are in-memory only.
+
+    ``y_true`` is null for a game that had not been played when predicted.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -39,7 +60,7 @@ class PredictionRecord(BaseModel):
     game_id: str
     as_of: AwareDatetime
     y_hat: float | None
-    y_true: float
+    y_true: float | None
     predicted_at: AwareDatetime
     season: int
     week: int
@@ -76,6 +97,7 @@ class WalkForwardResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     run_id: UUID
+    feature_subset: FeatureSubset
     predictions: tuple[PredictionRecord, ...]
     metrics: tuple[MetricRecord, ...]
     folds: tuple[WalkForwardFold, ...]

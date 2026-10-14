@@ -27,6 +27,8 @@ from models.rush_yards import (
 from models.rush_yards.estimators import FittedBooster, predict_finite
 
 RB_A = "00-0031001"
+# Fixed so the demo is reproducible; a real run passes its wall-clock time.
+DEMO_PREDICTED_AT = datetime(2026, 10, 14, 21, 0, tzinfo=UTC)
 RB_B = "00-0031002"
 
 KICKOFFS: dict[tuple[int, int], datetime] = {
@@ -133,6 +135,7 @@ def run_walk_forward(
     slate = rows if rows is not None else demo_population()
     return walk_forward(
         slate,
+        predicted_at=DEMO_PREDICTED_AT,
         score_start=2016,
         score_end=2016,
         n_estimators=n_estimators,

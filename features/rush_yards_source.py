@@ -386,6 +386,81 @@ def targets_from_box_scores(rows: Iterable[BoxScore]) -> list[RushTarget]:
     ]
 
 
+def week_first_kickoff(conn: Connection, *, season: int, week: int) -> datetime | None:
+    """Earliest REG kickoff in a week: the data cutoff for predicting it."""
+    value = conn.execute(
+        text(
+            """
+            SELECT min(kickoff_at) FROM nfl.games
+            WHERE season = :season AND week = :week AND game_type = 'REG'
+            """
+        ),
+        {"season": season, "week": week},
+    ).scalar_one_or_none()
+    if value is None:
+        return None
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise TypeError("nfl.games.kickoff_at must be a timezone-aware timestamp")
+    return value
+
+
+def week_games(history: RushHistory, *, season: int, week: int) -> list[ScheduledGame]:
+    """Scheduled REG games for one week, earliest kickoff first."""
+    games = [
+        game
+        for game in history.games
+        if game.season == season and game.week == week and game.game_type == REG
+    ]
+    games.sort(key=lambda game: (game.kickoff_at, game.game_id))
+    return games
+
+
+def upcoming_targets(
+    history: RushHistory, games: Sequence[ScheduledGame]
+) -> list[RushTarget]:
+    """RBs to predict for games that have not been loaded as box scores.
+
+    A club's backs are the RB box scores from that club's most recent game
+    this season that kicked off before ``history.kickoff_before``. A club with
+    no game yet this season (week 1) gets no targets rather than a guess
+    carried over from last season's roster.
+    """
+    franchise_of = history.franchise_of
+    latest_game: dict[tuple[str, int], tuple[datetime, str]] = {}
+    for row in history.box_scores:
+        key = (franchise_of.get(row.team, row.team), row.season)
+        seen = latest_game.get(key)
+        if seen is None or (row.kickoff_at, row.game_id) > seen:
+            latest_game[key] = (row.kickoff_at, row.game_id)
+
+    targets: list[RushTarget] = []
+    for game in games:
+        for side in (game.home_team, game.away_team):
+            franchise = franchise_of.get(side, side)
+            last = latest_game.get((franchise, game.season))
+            if last is None:
+                continue
+            backs = sorted(
+                {
+                    row.gsis_id
+                    for row in history.box_scores
+                    if row.game_id == last[1]
+                    and franchise_of.get(row.team, row.team) == franchise
+                    and row.position_group == RB_POSITION_GROUP
+                }
+            )
+            targets.extend(
+                RushTarget(
+                    gsis_id=gsis_id,
+                    game_id=game.game_id,
+                    team=side,
+                    as_of=game.kickoff_at,
+                )
+                for gsis_id in backs
+            )
+    return targets
+
+
 _BOX_SCORES_SQL = text(
     """
     SELECT ps.gsis_id, ps.game_id, ps.season, ps.week, ps.season_type,

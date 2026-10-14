@@ -9,6 +9,8 @@ import pytest
 from models.rush_yards.walk_forward import iter_week_folds, walk_forward
 from tests.models.helpers import RB_A, RB_B, labeled_row, population
 
+PREDICTED_AT = datetime(2026, 10, 14, 21, 0, tzinfo=UTC)
+
 
 def test_week2_train_kickoffs_are_strictly_before_cutoff() -> None:
     rows = population()
@@ -55,6 +57,7 @@ def test_walk_forward_emits_baselines_and_boosters_with_small_n_estimators() -> 
     rows = population()
     result = walk_forward(
         rows,
+        predicted_at=PREDICTED_AT,
         score_start=2016,
         score_end=2016,
         n_estimators=5,
@@ -84,7 +87,13 @@ def test_walk_forward_emits_baselines_and_boosters_with_small_n_estimators() -> 
 
 def test_walk_forward_baseline_unknown_increments_n_unknown() -> None:
     rows = [labeled_row(RB_B, 2016, 1)]
-    result = walk_forward(rows, score_start=2016, score_end=2016, n_estimators=5)
+    result = walk_forward(
+        rows,
+        predicted_at=PREDICTED_AT,
+        score_start=2016,
+        score_end=2016,
+        n_estimators=5,
+    )
     std_metrics = [
         metric
         for metric in result.metrics
@@ -105,4 +114,10 @@ def test_naive_feature_as_of_is_rejected() -> None:
     )
     bad = row.model_copy(update={"features": naive_features})
     with pytest.raises(ValueError, match="timezone-aware"):
-        walk_forward([bad], score_start=2016, score_end=2016, n_estimators=5)
+        walk_forward(
+            [bad],
+            predicted_at=PREDICTED_AT,
+            score_start=2016,
+            score_end=2016,
+            n_estimators=5,
+        )

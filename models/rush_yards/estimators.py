@@ -28,6 +28,11 @@ DEFAULT_N_ESTIMATORS = 400
 DEFAULT_EARLY_STOPPING_ROUNDS = 25
 
 
+def booster_model_version(base: str, feature_subset: str) -> str:
+    """``xgb_rush_rb_v1+pregame_safe``: the subset is part of the model identity."""
+    return f"{base}+{feature_subset}"
+
+
 @dataclass(frozen=True, slots=True)
 class XGBRegressorSpec:
     """``xgboost.XGBRegressor`` kwargs from spec §8."""

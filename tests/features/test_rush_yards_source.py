@@ -22,6 +22,8 @@ from features.rush_yards_source import (
     TeamGameAllowed,
     rb_population,
     targets_from_box_scores,
+    upcoming_targets,
+    week_games,
 )
 from features.types import Known, Unknown
 
@@ -227,6 +229,28 @@ def test_unknown_game_raises() -> None:
     index = RushSnapshotIndex(_history([_box(1, 40)]))
     with pytest.raises(ValueError, match="not in the loaded schedule"):
         index.snapshot(RushTarget(gsis_id=RB, game_id="nope", team="LV", as_of=KICK[2]))
+
+
+def test_upcoming_targets_use_each_clubs_latest_prior_game() -> None:
+    backup = "00-0050009"
+    history = _history([_box(1, 40), _box(2, 60), _box(1, 10, gsis_id=backup)])
+    week3 = [game for game in week_games(history, season=2019, week=3)]
+    targets = upcoming_targets(history, week3)
+
+    # Only the RB who played in LV's week-2 game; KC has no RB box scores.
+    assert [(t.gsis_id, t.game_id, t.as_of) for t in targets] == [
+        (RB, _game(3).game_id, KICK[3])
+    ]
+    assert targets[0].team == "OAK"
+
+
+def test_upcoming_targets_skip_clubs_without_a_game_this_season() -> None:
+    history = _history([_box(1, 40)])
+    early = history.model_copy(
+        update={"games": (*history.games, _game(1).model_copy(update={"season": 2020}))}
+    )
+    games_2020 = week_games(early, season=2020, week=1)
+    assert upcoming_targets(early, games_2020) == []
 
 
 def test_population_is_reg_rb_rows_in_scored_seasons() -> None:
