@@ -330,19 +330,22 @@ class Injury(Base):
 
 
 class DepthChart(Base):
+    """Snapshot rows from 0010. Pre-2025 ``snapshot_at`` is derived, not published."""
+
     __tablename__ = "depth_charts"
     __table_args__ = {"schema": "nfl"}
 
-    season: Mapped[int] = mapped_column(primary_key=True)
-    week: Mapped[int] = mapped_column(primary_key=True)
-    game_type: Mapped[str] = mapped_column(primary_key=True)
-    team: Mapped[str] = mapped_column(ForeignKey("nfl.teams.team_abbr"))
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True
+    )
+    team: Mapped[str] = mapped_column(
+        ForeignKey("nfl.teams.team_abbr"), primary_key=True
+    )
     gsis_id: Mapped[str] = mapped_column(
         ForeignKey("nfl.players.gsis_id"), primary_key=True
     )
     position: Mapped[str] = mapped_column(primary_key=True)
-    depth_position: Mapped[str | None]
-    depth_team: Mapped[int | None]
+    depth_rank: Mapped[int | None]
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -370,7 +373,7 @@ class Prediction(Base):
     game_id: Mapped[str] = mapped_column(primary_key=True)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     y_hat: Mapped[float | None]
-    y_true: Mapped[float]
+    y_true: Mapped[float | None]
     predicted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

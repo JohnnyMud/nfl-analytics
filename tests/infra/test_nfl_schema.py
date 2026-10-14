@@ -15,6 +15,10 @@ _PLAYER_STATS_MIGRATION = Path("alembic/versions/0006_nfl_player_stats.py")
 _INJURIES_MIGRATION = Path("alembic/versions/0007_nfl_injuries.py")
 _DEPTH_CHARTS_MIGRATION = Path("alembic/versions/0008_nfl_depth_charts.py")
 _RUSH_PREDICTIONS_MIGRATION = Path("alembic/versions/0009_rush_rb_predictions.py")
+_DEPTH_SNAPSHOTS_MIGRATION = Path("alembic/versions/0010_depth_chart_snapshots.py")
+_PREDICTION_OUTCOME_MIGRATION = Path(
+    "alembic/versions/0011_prediction_y_true_nullable.py"
+)
 
 
 def _insert_team(conn: Connection, abbr: str, franchise_id: str, name: str) -> None:
@@ -120,8 +124,17 @@ def test_migration_creates_empty_nfl_tables() -> None:
     depth_charts_source = _DEPTH_CHARTS_MIGRATION.read_text()
     assert "CREATE TABLE nfl.depth_charts" in depth_charts_source
     assert "INSERT INTO" not in depth_charts_source.upper()
-    assert "no intra-week timestamp" in depth_charts_source
-    assert "pre-kickoff chart" in depth_charts_source
+
+    snapshots_source = _DEPTH_SNAPSHOTS_MIGRATION.read_text()
+    assert 'down_revision: str | None = "0009_rush_rb_predictions"' in snapshots_source
+    assert "snapshot_at   timestamptz NOT NULL" in snapshots_source
+    assert "not publication times" in snapshots_source
+    assert "INSERT INTO" not in snapshots_source.upper()
+
+    outcome_source = _PREDICTION_OUTCOME_MIGRATION.read_text()
+    assert 'down_revision: str | None = "0010_depth_chart_snapshots"' in outcome_source
+    assert "ALTER COLUMN y_true DROP NOT NULL" in outcome_source
+    assert "ALTER COLUMN y_true SET NOT NULL" in outcome_source
 
     model_source = _RUSH_PREDICTIONS_MIGRATION.read_text()
     assert 'revision: str = "0009_rush_rb_predictions"' in model_source
@@ -576,6 +589,7 @@ def test_injuries_reject_unknown_team(migrated_engine: Engine) -> None:
 
 def test_depth_charts_round_trip(migrated_engine: Engine) -> None:
     ingested_at = datetime(2026, 9, 22, 19, 0, 0, tzinfo=UTC)
+    snapshot_at = datetime(2026, 9, 13, 17, 0, 0, tzinfo=UTC)
     gsis_id = "00-0094001"
 
     with migrated_engine.begin() as conn:
@@ -585,24 +599,20 @@ def test_depth_charts_round_trip(migrated_engine: Engine) -> None:
             text(
                 """
                 INSERT INTO nfl.depth_charts (
-                    season, week, game_type, team, gsis_id, position,
-                    depth_position, depth_team, ingested_at
+                    snapshot_at, team, gsis_id, position, depth_rank, ingested_at
                 )
                 VALUES (
-                    :season, :week, :game_type, :team, :gsis_id, :position,
-                    :depth_position, :depth_team, :ingested_at
+                    :snapshot_at, :team, :gsis_id, :position, :depth_rank,
+                    :ingested_at
                 )
                 """
             ),
             {
-                "season": 2026,
-                "week": 1,
-                "game_type": "REG",
+                "snapshot_at": snapshot_at,
                 "team": "DPT",
                 "gsis_id": gsis_id,
                 "position": "RB",
-                "depth_position": "RB",
-                "depth_team": 1,
+                "depth_rank": 1,
                 "ingested_at": ingested_at,
             },
         )
@@ -611,23 +621,40 @@ def test_depth_charts_round_trip(migrated_engine: Engine) -> None:
         row = conn.execute(
             text(
                 """
-                SELECT gsis_id, week, position, depth_team, ingested_at
+                SELECT gsis_id, snapshot_at, position, depth_rank, ingested_at
                 FROM nfl.depth_charts
-                WHERE gsis_id = :gsis_id AND season = 2026 AND week = 1
-                  AND game_type = 'REG' AND position = 'RB'
+                WHERE gsis_id = :gsis_id AND team = 'DPT' AND position = 'RB'
                 """
             ),
             {"gsis_id": gsis_id},
         ).one()
 
-    assert row.ingested_at.tzinfo is not None
-    assert row.ingested_at.utcoffset() is not None
-    assert row.ingested_at.utcoffset().total_seconds() == 0
+    assert row.snapshot_at.utcoffset() is not None
+    assert row.snapshot_at.utcoffset().total_seconds() == 0
+    assert row.snapshot_at == snapshot_at
     assert row.ingested_at == ingested_at
     assert row.gsis_id == gsis_id
-    assert row.week == 1
     assert row.position == "RB"
-    assert row.depth_team == 1
+    assert row.depth_rank == 1
+
+
+def _insert_depth_row(conn: Connection, *, team: str, gsis_id: str) -> None:
+    conn.execute(
+        text(
+            """
+            INSERT INTO nfl.depth_charts (
+                snapshot_at, team, gsis_id, position, ingested_at
+            )
+            VALUES (:snapshot_at, :team, :gsis_id, 'RB', :ingested_at)
+            """
+        ),
+        {
+            "snapshot_at": datetime(2026, 9, 13, 17, 0, 0, tzinfo=UTC),
+            "team": team,
+            "gsis_id": gsis_id,
+            "ingested_at": datetime(2026, 9, 22, 19, 0, 0, tzinfo=UTC),
+        },
+    )
 
 
 def test_depth_charts_reject_unknown_gsis_id(migrated_engine: Engine) -> None:
@@ -636,29 +663,7 @@ def test_depth_charts_reject_unknown_gsis_id(migrated_engine: Engine) -> None:
 
     with pytest.raises(IntegrityError):
         with migrated_engine.begin() as conn:
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO nfl.depth_charts (
-                        season, week, game_type, team, gsis_id, position,
-                        ingested_at
-                    )
-                    VALUES (
-                        :season, :week, :game_type, :team, :gsis_id, :position,
-                        :ingested_at
-                    )
-                    """
-                ),
-                {
-                    "season": 2026,
-                    "week": 1,
-                    "game_type": "REG",
-                    "team": "DGA",
-                    "gsis_id": "00-00MISSING",
-                    "position": "RB",
-                    "ingested_at": datetime(2026, 9, 22, 19, 0, 0, tzinfo=UTC),
-                },
-            )
+            _insert_depth_row(conn, team="DGA", gsis_id="00-00MISSING")
 
 
 def test_depth_charts_reject_unknown_team(migrated_engine: Engine) -> None:
@@ -669,26 +674,4 @@ def test_depth_charts_reject_unknown_team(migrated_engine: Engine) -> None:
 
     with pytest.raises(IntegrityError):
         with migrated_engine.begin() as conn:
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO nfl.depth_charts (
-                        season, week, game_type, team, gsis_id, position,
-                        ingested_at
-                    )
-                    VALUES (
-                        :season, :week, :game_type, :team, :gsis_id, :position,
-                        :ingested_at
-                    )
-                    """
-                ),
-                {
-                    "season": 2026,
-                    "week": 1,
-                    "game_type": "REG",
-                    "team": "ZZZ",
-                    "gsis_id": gsis_id,
-                    "position": "RB",
-                    "ingested_at": datetime(2026, 9, 22, 19, 0, 0, tzinfo=UTC),
-                },
-            )
+            _insert_depth_row(conn, team="ZZZ", gsis_id=gsis_id)
