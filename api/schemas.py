@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -83,3 +84,32 @@ class PlayerSeasonSummaryOut(BaseModel):
     passing_yards: int | None
     passing_tds: int | None
     passing_interceptions: int | None
+
+
+class PlayerPredictionOut(BaseModel):
+    """One stored rushing-yards prediction for one game and model version.
+
+    ``y_hat`` null means the model returned ``Unknown`` for that game (for a
+    baseline, no prior games); render it as "not predicted", never 0.
+    ``y_true`` is the label frozen when the run was written and is null for
+    predictions made before the game. ``actual_rushing_yards`` is the current
+    box score, null when no box-score row exists yet.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    run_id: UUID
+    model_name: str
+    model_version: str
+    feature_set_version: str
+    game_id: str
+    season: int
+    week: int
+    kickoff_at: datetime | None
+    home_team: str
+    away_team: str
+    as_of: datetime
+    predicted_at: datetime
+    y_hat: float | None
+    y_true: float | None
+    actual_rushing_yards: int | None

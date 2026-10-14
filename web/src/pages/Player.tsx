@@ -4,7 +4,8 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { getPlayer, listPlayerSeasons } from "../api/players";
 import { getTeam } from "../api/teams";
 import { PlayerHeader } from "../components/PlayerHeader";
-import { PlayerTabs } from "../components/PlayerTabs";
+import { PlayerTabs, type PlayerTab } from "../components/PlayerTabs";
+import { PredictionsPanel } from "../components/PredictionsPanel";
 import { SeasonSelector, type SeasonKey } from "../components/SeasonSelector";
 import { StatCards } from "../components/StatCards";
 import { isNotFound, useApi } from "../hooks/useApi";
@@ -36,6 +37,9 @@ export function PlayerPage() {
       ) ?? null
     : null;
 
+  const activeTab: PlayerTab =
+    searchParams.get("tab") === "predictions" ? "predictions" : "overview";
+
   const errorMessage = playerState.error
     ? isNotFound(playerState.error)
       ? "That player is not in nfl.players."
@@ -65,48 +69,63 @@ export function PlayerPage() {
       {player ? (
         <>
           <PlayerHeader player={player} team={teamState.data} />
-          <PlayerTabs active="overview" onChange={() => undefined} />
+          <PlayerTabs
+            active={activeTab}
+            onChange={(tab) => {
+              const next = new URLSearchParams(searchParams);
+              if (tab === "overview") {
+                next.delete("tab");
+              } else {
+                next.set("tab", tab);
+              }
+              setSearchParams(next, { replace: true });
+            }}
+          />
 
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>Season totals</h2>
-              <SeasonSelector
-                seasons={seasons}
-                value={selected}
-                onChange={(key) =>
-                  setSearchParams(
-                    { season: String(key.season), type: key.seasonType },
-                    { replace: true },
-                  )
-                }
-              />
-            </div>
-            {seasonsState.status === "loading" ? (
-              <p className="muted">Loading box scores…</p>
-            ) : null}
-            {seasonsState.status === "error" ? (
-              <p className="banner banner-error" role="alert">
-                Could not load season totals.
-              </p>
-            ) : null}
-            {seasonsState.status === "ready" && seasons.length === 0 ? (
-              <p className="muted">
-                No box scores are loaded for this player. Totals appear once
-                nfl.player_stats has rows for them.
-              </p>
-            ) : null}
-            {summary ? (
-              <>
-                <StatCards cards={buildStatCards(summary, player.position)} />
-                <p className="muted panel-footnote">
-                  Sums of {summary.games} final box{" "}
-                  {summary.games === 1 ? "score" : "scores"} in {summary.season}
-                  {summary.season_type === "REG" ? "" : ` ${summary.season_type}`}.
-                  A dash means nflverse did not report that stat, not zero.
+          {activeTab === "predictions" ? <PredictionsPanel gsisId={gsisId} /> : null}
+
+          {activeTab === "overview" ? (
+            <section className="panel">
+              <div className="panel-heading">
+                <h2>Season totals</h2>
+                <SeasonSelector
+                  seasons={seasons}
+                  value={selected}
+                  onChange={(key) => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set("season", String(key.season));
+                    next.set("type", key.seasonType);
+                    setSearchParams(next, { replace: true });
+                  }}
+                />
+              </div>
+              {seasonsState.status === "loading" ? (
+                <p className="muted">Loading box scores…</p>
+              ) : null}
+              {seasonsState.status === "error" ? (
+                <p className="banner banner-error" role="alert">
+                  Could not load season totals.
                 </p>
-              </>
-            ) : null}
-          </section>
+              ) : null}
+              {seasonsState.status === "ready" && seasons.length === 0 ? (
+                <p className="muted">
+                  No box scores are loaded for this player. Totals appear once
+                  nfl.player_stats has rows for them.
+                </p>
+              ) : null}
+              {summary ? (
+                <>
+                  <StatCards cards={buildStatCards(summary, player.position)} />
+                  <p className="muted panel-footnote">
+                    Sums of {summary.games} final box{" "}
+                    {summary.games === 1 ? "score" : "scores"} in {summary.season}
+                    {summary.season_type === "REG" ? "" : ` ${summary.season_type}`}.
+                    A dash means nflverse did not report that stat, not zero.
+                  </p>
+                </>
+              ) : null}
+            </section>
+          ) : null}
         </>
       ) : null}
     </main>

@@ -46,3 +46,27 @@ export type PlayerSeasonSummary = {
   passing_tds: number | null;
   passing_interceptions: number | null;
 };
+
+/**
+ * One stored rushing-yards prediction for one game and model version.
+ * `y_hat` null is a model `Unknown` ("not predicted"), never 0. `y_true` is
+ * the label frozen with the run; `actual_rushing_yards` is the current box
+ * score, null until a box-score row exists.
+ */
+export type PlayerPrediction = {
+  run_id: string;
+  model_name: string;
+  model_version: string;
+  feature_set_version: string;
+  game_id: string;
+  season: number;
+  week: number;
+  kickoff_at: string | null;
+  home_team: string;
+  away_team: string;
+  as_of: string;
+  predicted_at: string;
+  y_hat: number | null;
+  y_true: number | null;
+  actual_rushing_yards: number | null;
+};

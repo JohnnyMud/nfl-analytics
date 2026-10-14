@@ -4,7 +4,7 @@ const TABS: { id: PlayerTab; label: string; enabled: boolean; note: string }[] =
   { id: "overview", label: "Overview", enabled: true, note: "" },
   { id: "performance", label: "Performance", enabled: false, note: "game log and rolling form" },
   { id: "matchups", label: "Matchups", enabled: false, note: "opponent defense vs position" },
-  { id: "predictions", label: "Predictions", enabled: false, note: "model output vs actual" },
+  { id: "predictions", label: "Predictions", enabled: true, note: "" },
 ];
 
 type PlayerTabsProps = {

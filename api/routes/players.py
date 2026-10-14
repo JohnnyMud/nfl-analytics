@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from api.deps import DbSession
-from api.schemas import PlayerOut, PlayerSeasonSummaryOut
-from infra.models import Player, PlayerStat
+from api.schemas import PlayerOut, PlayerPredictionOut, PlayerSeasonSummaryOut
+from infra.models import Game, Player, PlayerStat, Prediction
 
 router = APIRouter()
 
@@ -99,5 +99,69 @@ def list_player_seasons(gsis_id: str, db: DbSession) -> list[PlayerSeasonSummary
     )
     return [
         PlayerSeasonSummaryOut.model_validate(dict(row._mapping))
+        for row in db.execute(stmt).all()
+    ]
+
+
+@router.get(
+    "/players/{gsis_id}/predictions",
+    response_model=list[PlayerPredictionOut],
+)
+def list_player_predictions(
+    gsis_id: str, db: DbSession, season: int | None = None
+) -> list[PlayerPredictionOut]:
+    """Stored rushing-yards predictions, newest game first.
+
+    Reads ``model.prediction`` only; nothing is computed here. When several
+    runs scored the same game with the same model version, the most recently
+    predicted row wins. An empty list means no run has scored this player.
+    """
+    if db.get(Player, gsis_id) is None:
+        raise HTTPException(status_code=404, detail="player not found")
+
+    latest = (
+        select(Prediction)
+        .where(Prediction.gsis_id == gsis_id)
+        .distinct(Prediction.game_id, Prediction.model_version)
+        .order_by(
+            Prediction.game_id,
+            Prediction.model_version,
+            Prediction.predicted_at.desc(),
+            Prediction.run_id,
+        )
+        .subquery()
+    )
+    stmt = (
+        select(
+            latest.c.run_id,
+            latest.c.model_name,
+            latest.c.model_version,
+            latest.c.feature_set_version,
+            latest.c.game_id,
+            Game.season,
+            Game.week,
+            Game.kickoff_at,
+            Game.home_team,
+            Game.away_team,
+            latest.c.as_of,
+            latest.c.predicted_at,
+            latest.c.y_hat,
+            latest.c.y_true,
+            PlayerStat.rushing_yards.label("actual_rushing_yards"),
+        )
+        .join(Game, Game.game_id == latest.c.game_id)
+        .outerjoin(
+            PlayerStat,
+            and_(
+                PlayerStat.gsis_id == latest.c.gsis_id,
+                PlayerStat.game_id == latest.c.game_id,
+            ),
+        )
+        .order_by(Game.kickoff_at.desc(), latest.c.game_id, latest.c.model_version)
+    )
+    if season is not None:
+        stmt = stmt.where(Game.season == season)
+    return [
+        PlayerPredictionOut.model_validate(dict(row._mapping))
         for row in db.execute(stmt).all()
     ]
