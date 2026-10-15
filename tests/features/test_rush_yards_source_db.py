@@ -19,80 +19,89 @@ KICK_2 = datetime(2019, 9, 15, 17, 0, tzinfo=UTC)
 RB = "00-0060001"
 WR = "00-0060002"
 
+_RESET = text(
+    "TRUNCATE nfl.depth_charts, nfl.player_stats, nfl.games, "
+    "nfl.players, nfl.teams CASCADE"
+)
+
+
+def _reset(engine: Engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(_RESET)
+
 
 @pytest.fixture
 def seeded(migrated_engine: Engine) -> Iterator[Engine]:
-    with Session(migrated_engine) as session:
-        for abbr, franchise in (("OAK", "F-LV"), ("LV", "F-LV"), ("KC", "F-KC")):
-            session.add(
-                Team(
-                    team_abbr=abbr,
-                    franchise_id=franchise,
-                    team_name=abbr,
-                    team_nick=abbr,
-                    team_conf="AFC",
-                    team_division="AFC West",
-                    ingested_at=INGESTED_AT,
-                )
-            )
-        session.flush()
-        for gsis_id in (RB, WR):
-            session.add(
-                Player(gsis_id=gsis_id, display_name=gsis_id, ingested_at=INGESTED_AT)
-            )
-        for week, kick in ((1, KICK_1), (2, KICK_2)):
-            session.add(
-                Game(
-                    game_id=f"2019_0{week}_KC_OAK",
-                    season=2019,
-                    game_type="REG",
-                    week=week,
-                    game_date=date(2019, 9, 1),
-                    kickoff_at=kick,
-                    home_team="OAK",
-                    away_team="KC",
-                    home_score=21,
-                    away_score=17,
-                    ingested_at=INGESTED_AT,
-                )
-            )
-        session.flush()
-        for week in (1, 2):
-            for gsis_id, group, yards in ((RB, "RB", 50 * week), (WR, "WR", 7)):
+    _reset(migrated_engine)
+    try:
+        with Session(migrated_engine) as session:
+            for abbr, franchise in (("OAK", "F-LV"), ("LV", "F-LV"), ("KC", "F-KC")):
                 session.add(
-                    PlayerStat(
-                        gsis_id=gsis_id,
-                        game_id=f"2019_0{week}_KC_OAK",
-                        season=2019,
-                        week=week,
-                        season_type="REG",
-                        position_group=group,
-                        team="LV",
-                        opponent_team="KC",
-                        rushing_yards=yards,
-                        carries=yards // 5,
+                    Team(
+                        team_abbr=abbr,
+                        franchise_id=franchise,
+                        team_name=abbr,
+                        team_nick=abbr,
+                        team_conf="AFC",
+                        team_division="AFC West",
                         ingested_at=INGESTED_AT,
                     )
                 )
-            session.add(
-                DepthChart(
-                    snapshot_at=KICK_1 if week == 1 else KICK_2,
-                    team="LV",
-                    gsis_id=RB,
-                    position="RB",
-                    depth_rank=1,
-                    ingested_at=INGESTED_AT,
+            session.flush()
+            for gsis_id in (RB, WR):
+                session.add(
+                    Player(
+                        gsis_id=gsis_id, display_name=gsis_id, ingested_at=INGESTED_AT
+                    )
                 )
-            )
-        session.commit()
-    yield migrated_engine
-    with migrated_engine.begin() as conn:
-        conn.execute(
-            text(
-                "TRUNCATE nfl.depth_charts, nfl.player_stats, nfl.games, "
-                "nfl.players, nfl.teams CASCADE"
-            )
-        )
+            for week, kick in ((1, KICK_1), (2, KICK_2)):
+                session.add(
+                    Game(
+                        game_id=f"2019_0{week}_KC_OAK",
+                        season=2019,
+                        game_type="REG",
+                        week=week,
+                        game_date=date(2019, 9, 1),
+                        kickoff_at=kick,
+                        home_team="OAK",
+                        away_team="KC",
+                        home_score=21,
+                        away_score=17,
+                        ingested_at=INGESTED_AT,
+                    )
+                )
+            session.flush()
+            for week in (1, 2):
+                for gsis_id, group, yards in ((RB, "RB", 50 * week), (WR, "WR", 7)):
+                    session.add(
+                        PlayerStat(
+                            gsis_id=gsis_id,
+                            game_id=f"2019_0{week}_KC_OAK",
+                            season=2019,
+                            week=week,
+                            season_type="REG",
+                            position_group=group,
+                            team="LV",
+                            opponent_team="KC",
+                            rushing_yards=yards,
+                            carries=yards // 5,
+                            ingested_at=INGESTED_AT,
+                        )
+                    )
+                session.add(
+                    DepthChart(
+                        snapshot_at=KICK_1 if week == 1 else KICK_2,
+                        team="LV",
+                        gsis_id=RB,
+                        position="RB",
+                        depth_rank=1,
+                        ingested_at=INGESTED_AT,
+                    )
+                )
+            session.commit()
+        yield migrated_engine
+    finally:
+        _reset(migrated_engine)
 
 
 def test_facts_at_or_after_kickoff_before_are_not_read(seeded: Engine) -> None:

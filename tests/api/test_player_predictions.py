@@ -179,7 +179,7 @@ def test_newest_run_wins_per_game_and_model_version(
 ) -> None:
     with Session(migrated_engine) as session:
         _seed(session)
-    old_run, new_run = uuid4(), uuid4()
+    old_run, new_run, full_run = uuid4(), uuid4(), uuid4()
     for run_id, y_hat, predicted_at in (
         (old_run, 50.0, PREDICTED_AT - timedelta(days=1)),
         (new_run, 60.0, PREDICTED_AT),
@@ -194,9 +194,11 @@ def test_newest_run_wins_per_game_and_model_version(
             y_hat=y_hat,
             predicted_at=predicted_at,
         )
+    # prediction_pkey is (run_id, model_name, gsis_id, game_id). A second
+    # version of the same model is a different run, matching walk-forward.
     _predict(
         migrated_engine,
-        run_id=old_run,
+        run_id=full_run,
         model_name="xgboost",
         model_version="xgb_rush_rb_v1+full",
         game_id="2026_01_DEN_KC",

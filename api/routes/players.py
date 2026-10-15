@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 
 from api.deps import DbSession
 from api.schemas import PlayerOut, PlayerPredictionOut, PlayerSeasonSummaryOut
@@ -122,7 +123,7 @@ def list_player_predictions(
     latest = (
         select(Prediction)
         .where(Prediction.gsis_id == gsis_id)
-        .distinct(Prediction.game_id, Prediction.model_version)
+        .ext(distinct_on(Prediction.game_id, Prediction.model_version))
         .order_by(
             Prediction.game_id,
             Prediction.model_version,

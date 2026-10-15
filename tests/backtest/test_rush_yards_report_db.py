@@ -12,60 +12,80 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
 from backtest.rush_yards_report import list_runs, load_report
-from tests.api.helpers import insert_game, insert_player_stat, insert_team
+from tests.api.helpers import (
+    insert_game,
+    insert_player,
+    insert_player_stat,
+    insert_team,
+)
 
 PREDICTED_AT = datetime(2026, 10, 14, 21, 0, tzinfo=UTC)
 KICK_1 = datetime(2026, 9, 13, 17, 0, tzinfo=UTC)
 KICK_2 = datetime(2026, 9, 20, 17, 0, tzinfo=UTC)
-RB = "00-0000001"
+RB = "00-0077001"
+
+# Helpers commit each row, so a failed seed must still clear the shared database.
+_RESET = text(
+    "TRUNCATE model.prediction, model.metric, model.feature_row, "
+    "nfl.player_stats, nfl.games, nfl.players, nfl.teams CASCADE"
+)
+
+
+def _reset(engine: Engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(_RESET)
 
 
 @pytest.fixture
 def seeded(migrated_engine: Engine) -> Iterator[Engine]:
-    with Session(migrated_engine) as session:
-        for abbr in ("KC", "BUF"):
-            insert_team(
+    _reset(migrated_engine)
+    try:
+        with Session(migrated_engine) as session:
+            for abbr in ("KC", "BUF"):
+                insert_team(
+                    session,
+                    team_abbr=abbr,
+                    team_name=abbr,
+                    team_nick=abbr,
+                    team_conf="AFC",
+                    team_division="AFC East",
+                )
+            insert_player(
                 session,
-                team_abbr=abbr,
-                team_name=abbr,
-                team_nick=abbr,
-                team_conf="AFC",
-                team_division="AFC East",
+                gsis_id=RB,
+                display_name="Report Back",
+                latest_team="KC",
+                position="RB",
             )
-        game_1 = insert_game(
-            session,
-            game_id="2026_01_BUF_KC",
-            season=2026,
-            week=1,
-            home_team="KC",
-            away_team="BUF",
-            kickoff_at=KICK_1,
-        )
-        insert_game(
-            session,
-            game_id="2026_02_KC_BUF",
-            season=2026,
-            week=2,
-            home_team="BUF",
-            away_team="KC",
-            kickoff_at=KICK_2,
-        )
-        insert_player_stat(
-            session,
-            gsis_id=RB,
-            game=game_1,
-            team="KC",
-            opponent_team="BUF",
-            rushing_yards=50,
-        )
-    yield migrated_engine
-    with migrated_engine.begin() as conn:
-        conn.execute(
-            text(
-                "TRUNCATE model.prediction, model.metric, model.feature_row, "
-                "nfl.player_stats, nfl.games, nfl.teams CASCADE"
+            game_1 = insert_game(
+                session,
+                game_id="2026_01_BUF_KC",
+                season=2026,
+                week=1,
+                home_team="KC",
+                away_team="BUF",
+                kickoff_at=KICK_1,
             )
-        )
+            insert_game(
+                session,
+                game_id="2026_02_KC_BUF",
+                season=2026,
+                week=2,
+                home_team="BUF",
+                away_team="KC",
+                kickoff_at=KICK_2,
+            )
+            insert_player_stat(
+                session,
+                gsis_id=RB,
+                game=game_1,
+                team="KC",
+                opponent_team="BUF",
+                rushing_yards=50,
+            )
+        yield migrated_engine
+    finally:
+        _reset(migrated_engine)
 
 
 def _predict(
