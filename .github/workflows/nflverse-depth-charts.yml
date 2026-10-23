@@ -1,0 +1,33 @@
+name: nflverse depth charts
+
+# After nflverse depth charts at 07:00 UTC, and after the 07:30 UTC players
+# job (this table FKs to nfl.players). Same season window as the other
+# nflverse jobs. The current-season file is loaded in full, so the first
+# run of the window includes publications from earlier in that file.
+on:
+  schedule:
+    - cron: "0 8 * 1,2,9-12 *"
+  workflow_dispatch:
+
+concurrency:
+  group: nflverse-depth-charts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Upsert depth charts
+        run: python -m ingest.nflverse.depth_charts

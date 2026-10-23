@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from common.settings import get_settings
+from ingest.nflverse.depth_charts import _DEPTH_COLUMNS, prepare_depth_charts
 from ingest.nflverse.injuries import _INJURY_COLUMNS, prepare_injuries
 from ingest.nflverse.player_stats import _STAT_COLUMNS, prepare_player_stats
 from ingest.nflverse.players import _PLAYER_COLUMNS, prepare_players
@@ -20,6 +21,7 @@ from ingest.nflverse.write import (
     upsert_frame,
 )
 from tests.infra.test_nfl_schema import _insert_game, _insert_player, _insert_team
+from tests.ingest.nflverse.test_depth_charts import _timestamped, _timestamped_row
 from tests.ingest.nflverse.test_injuries import _source_row as _injury_source
 from tests.ingest.nflverse.test_player_stats import _source_row as _stats_source
 from tests.ingest.nflverse.test_players import (
@@ -332,3 +334,92 @@ def test_upsert_players_updates_in_place_without_duplicate(
     assert rows[0].latest_team == "UPR"
     assert rows[0].status == "DEV"
     assert rows[0].ingested_at == SECOND_INGESTED
+
+
+def test_upsert_depth_charts_updates_rank_and_keeps_absent_snapshot(
+    migrated_engine: Engine,
+) -> None:
+    kept = "00-0096001"
+    omitted = "00-0096002"
+    with migrated_engine.begin() as conn:
+        _insert_team(conn, "UDC", "9601", "Upsert Depth Charts")
+        _insert_player(conn, kept, "UDC")
+        _insert_player(conn, omitted, "UDC")
+
+    url = get_settings().postgres_url
+    first = prepare_depth_charts(
+        _timestamped(
+            _timestamped_row(
+                gsis_id=kept,
+                team="UDC",
+                dt="2026-10-01T07:00:00Z",
+                pos_abb="RB",
+                pos_rank=2,
+            ),
+            _timestamped_row(
+                gsis_id=kept,
+                team="UDC",
+                dt="2026-10-08T07:00:00Z",
+                pos_abb="RB",
+                pos_rank=1,
+            ),
+            _timestamped_row(
+                gsis_id=omitted,
+                team="UDC",
+                dt="2026-10-08T07:00:00Z",
+                pos_abb="HB",
+                pos_rank=1,
+            ),
+        ),
+        ingested_at=FIRST_INGESTED,
+        season=2026,
+    )
+    upsert_frame(
+        first,
+        table="nfl.depth_charts",
+        columns=_DEPTH_COLUMNS,
+        conflict=("gsis_id", "team", "snapshot_at", "position"),
+        connection_url=url,
+        empty_message="no depth charts to ingest",
+    )
+    second = prepare_depth_charts(
+        _timestamped(
+            _timestamped_row(
+                gsis_id=kept,
+                team="UDC",
+                dt="2026-10-08T07:00:00Z",
+                pos_abb="RB",
+                pos_rank=3,
+            ),
+        ),
+        ingested_at=SECOND_INGESTED,
+        season=2026,
+    )
+    upsert_frame(
+        second,
+        table="nfl.depth_charts",
+        columns=_DEPTH_COLUMNS,
+        conflict=("gsis_id", "team", "snapshot_at", "position"),
+        connection_url=url,
+        empty_message="no depth charts to ingest",
+    )
+
+    with migrated_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT gsis_id, position, depth_rank, snapshot_at, ingested_at
+                FROM nfl.depth_charts
+                WHERE team = 'UDC'
+                ORDER BY snapshot_at, gsis_id, position
+                """
+            )
+        ).all()
+    assert [
+        (row.gsis_id, row.position, row.depth_rank, row.ingested_at) for row in rows
+    ] == [
+        (kept, "RB", 2, FIRST_INGESTED),
+        (kept, "RB", 3, SECOND_INGESTED),
+        (omitted, "HB", 1, FIRST_INGESTED),
+    ]
+    assert all(row.snapshot_at.utcoffset() is not None for row in rows)
