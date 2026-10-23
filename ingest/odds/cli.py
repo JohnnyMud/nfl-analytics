@@ -88,9 +88,9 @@ def _load_settings() -> Settings | None:
     try:
         return get_settings()
     except RuntimeError as exc:
-        if "DATABASE_URL is not set" not in str(exc):
+        if "SUPABASE_URL or DATABASE_URL is not set" not in str(exc):
             raise
-        _log.error("DATABASE_URL is missing")
+        _log.error("database URL is missing")
         return None
 
 

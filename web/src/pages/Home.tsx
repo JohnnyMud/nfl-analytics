@@ -21,7 +21,7 @@ export function Home() {
       })
       .catch(() => {
         if (!cancelled) {
-          setError("Could not load teams. Is the API running on port 8000?");
+          setError("Could not load teams. Is the API running on port 8001?");
         }
       })
       .finally(() => {

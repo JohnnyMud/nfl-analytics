@@ -99,9 +99,55 @@ def test_missing_database_url_raises(monkeypatch) -> None:
 
 def test_get_settings_missing_database_url_raises_runtime_error(monkeypatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.setattr("common.settings.load_dotenv", lambda path=None: None)
-    with pytest.raises(RuntimeError, match="DATABASE_URL is not set"):
+    with pytest.raises(RuntimeError, match="SUPABASE_URL or DATABASE_URL is not set"):
         get_settings()
+
+
+def test_get_settings_prefers_supabase_url_over_dotenv_database_url(
+    tmp_path: Path, monkeypatch
+) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "APP_ENV=local\n"
+        "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nfl_analytics\n"
+        "SUPABASE_URL=postgresql://postgres.example:secret@aws-0-us-west-1.pooler.supabase.com:5432/postgres\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setattr(
+        "common.settings.load_dotenv", lambda path=None: load_dotenv(env_file)
+    )
+
+    settings = get_settings()
+
+    assert settings.sqlalchemy_url == (
+        "postgresql+psycopg://postgres.example:secret@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
+    )
+
+
+def test_process_database_url_wins_over_supabase_url(
+    tmp_path: Path, monkeypatch
+) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "APP_ENV=local\n"
+        "SUPABASE_URL=postgresql://postgres.example:secret@aws-0-us-west-1.pooler.supabase.com:5432/postgres\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DATABASE_URL", "postgresql://from-process/db")
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setattr(
+        "common.settings.load_dotenv", lambda path=None: load_dotenv(env_file)
+    )
+
+    settings = get_settings()
+
+    assert settings.postgres_url == "postgresql://from-process/db"
 
 
 def test_production_rejects_localhost(monkeypatch) -> None:

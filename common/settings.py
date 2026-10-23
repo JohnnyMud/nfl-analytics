@@ -2,10 +2,15 @@
 
 Locally, missing values are filled from a ``.env`` file. In CI and production,
 GitHub Actions injects the same names as secrets / env vars; those always win.
+
+The app database is ``SUPABASE_URL``. A ``DATABASE_URL`` already present in the
+process environment overrides it, which is how CI and ``make test`` stay on a
+throwaway Postgres instead of Supabase.
 """
 
 from __future__ import annotations
 
+import os
 from enum import StrEnum
 from typing import Self
 
@@ -68,15 +73,28 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Load settings from the process environment, filling gaps from ``.env``.
 
+    Database resolution, in order:
+
+    1. ``DATABASE_URL`` already in the process environment (CI secrets, ``make test``).
+    2. ``SUPABASE_URL`` from the environment or ``.env``.
+    3. ``DATABASE_URL`` from ``.env``.
+
     Not cached: the test harness mutates ``DATABASE_URL`` to point at a throwaway
     database, and Alembic must observe that change.
     """
+    process_database_url = os.environ.get("DATABASE_URL")
     load_dotenv()
+    if process_database_url:
+        os.environ["DATABASE_URL"] = process_database_url
+    else:
+        supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+        if supabase_url:
+            os.environ["DATABASE_URL"] = supabase_url
     try:
         return Settings()
     except ValidationError as exc:
         if _database_url_missing(exc):
-            raise RuntimeError("DATABASE_URL is not set") from exc
+            raise RuntimeError("SUPABASE_URL or DATABASE_URL is not set") from exc
         raise
 
 

@@ -21,6 +21,12 @@ def _require_database_url() -> str:
         raise RuntimeError(
             "refusing to create throwaway test databases against APP_ENV=production"
         )
+    host = (make_url(settings.sqlalchemy_url).host or "").lower()
+    if "supabase.co" in host or "supabase.com" in host:
+        raise RuntimeError(
+            "refusing to create throwaway test databases against Supabase; "
+            "run tests with DATABASE_URL pointed at local Postgres (make test)"
+        )
     return settings.sqlalchemy_url
 
 

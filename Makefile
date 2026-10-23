@@ -1,10 +1,10 @@
 # Prefer the local venv after `make setup`; CI uses the runner's Python.
 PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 
-# App commands (migrate, capture, api) read DATABASE_URL from `.env` locally
-# or from the process environment (GitHub Actions secrets in production).
-# Tests always pin local Postgres so a production URL in `.env` cannot drop
-# throwaway databases against Supabase.
+# App commands (migrate, capture, api) use SUPABASE_URL from `.env`.
+# A process-level DATABASE_URL overrides that (GitHub Actions secrets, and
+# tests). Tests always pin local Postgres so they cannot create or drop
+# databases on Supabase.
 TEST_DATABASE_URL := postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
 .PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats nflverse-backfill rush-walk-forward rush-predict-upcoming rush-report rush-prune-runs

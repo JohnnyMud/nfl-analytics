@@ -56,8 +56,8 @@ The table is the original plan. As of the 2026 season:
 - **Not adopted:** DuckDB, dbt, Prefect/Dagster (jobs are GitHub Actions cron calling
   `python -m ingest.*`), Redis, MLflow (provenance is `run_id`, `model_version`, and
   `feature_set_version` on `model.prediction`), TanStack Query/Table, statsmodels,
-  Docker Compose as the warehouse (the compose Postgres is a local development and test
-  database; the data lives in Supabase).
+  Docker Compose as the warehouse (the compose Postgres is the test database only;
+  the app reads Supabase).
 - **Vendor:** odds come from The Odds API (`ingest/odds/the_odds_api.py`), not OpticOdds.
 - **Order:** the first player target is RB rushing yards, not receiving yards.
 - **Point-in-time caveat:** nflverse tables are upserted, not appended, so they are not
