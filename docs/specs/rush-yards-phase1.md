@@ -366,8 +366,10 @@ Parent owns Makefile targets, schema apply, and the final `make test` /
   migration `0010_depth_chart_snapshots`: `nfl.depth_charts` is keyed
   `(gsis_id, team, snapshot_at, position)` with an integer `depth_rank`. From
   2025 `snapshot_at` is the nflverse publication time; before 2025 it is the
-  club's derived kickoff, not a publication time. There is no depth-chart
-  ingest job; the table was loaded once.
+  club's derived kickoff, not a publication time. `ingest/nflverse/depth_charts.py`
+  upserts the current season from GitHub Actions, after the players job, in
+  the same Sep–Feb window as the other nflverse jobs. A week-only backfill
+  derives `snapshot_at` from that season's schedule. Absent keys are not deleted.
 - **Relocated clubs.** Box scores carry current club codes (`LV`, `LAC`)
   while the schedule keeps `OAK` / `SD`. The assembler compares clubs by
   `nfl.teams.franchise_id`, so `is_home`, `rest_days`, and opponent history

@@ -7,7 +7,7 @@ PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else e
 # throwaway databases against Supabase.
 TEST_DATABASE_URL := postgresql+psycopg://postgres:postgres@localhost:5432/nfl_analytics
 
-.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats nflverse-backfill rush-walk-forward rush-predict-upcoming rush-report rush-prune-runs
+.PHONY: setup db-up migrate test lint capture-dry api web nflverse-games nflverse-injuries nflverse-players nflverse-player-stats nflverse-depth-charts nflverse-backfill rush-walk-forward rush-predict-upcoming rush-report rush-prune-runs
 
 setup:
 	python3 -m venv .venv
@@ -51,10 +51,15 @@ nflverse-players:
 nflverse-player-stats:
 	$(PYTHON) -m ingest.nflverse.player_stats
 
+nflverse-depth-charts:
+	$(PYTHON) -m ingest.nflverse.depth_charts
+
 # Historical facts for rush_rb_v1. Players first so later FKs succeed.
 # Nightly current-season jobs stay on the targets above (no season env).
 # Supabase already holds 2016-2026; rerunning this rewrites rows in place.
-# nfl.depth_charts (0010 snapshot schema) has no ingest job in this repo.
+# Depth charts are not in this rewrite. Week-only seasons derive snapshot_at
+# from the schedule; a different instant would insert a second key. Run
+# `nflverse-depth-charts` (current season, or NFLVERSE_SEASON_START/END).
 nflverse-backfill:
 	NFLVERSE_SEASON_START=2016 NFLVERSE_SEASON_END=2025 $(PYTHON) -m ingest.nflverse.players
 	NFLVERSE_SEASON_START=2016 NFLVERSE_SEASON_END=2025 $(PYTHON) -m ingest.nflverse.schedules
